@@ -1,0 +1,17 @@
+namespace JobFlatBuffers;
+
+enum JobControlEnum: byte {
+    JOB_PAUSE = 0,
+    JOB_RESUME = 1,
+    JOB_SKIP_STEP = 2,
+    JOB_SKIP_CYCLE = 3,
+    JOB_CANCEL = 4
+}
+
+table JobControl {
+    job_id: string;
+    control: JobControlEnum;
+}
+
+root_type JobControl;
+

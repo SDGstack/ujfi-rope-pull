@@ -1,0 +1,10 @@
+namespace DataPointFlatBuffers;
+
+table DataPoint {
+    tag: string;
+    value: double;
+    ts: long;
+}
+
+root_type DataPoint;
+

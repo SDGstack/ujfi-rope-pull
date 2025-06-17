@@ -1,0 +1,34 @@
+namespace JobFlatBuffers;
+
+enum JobStatusEnum: byte {
+    JOB_QUEUED = 0,
+    JOB_IN_PROGRESS = 1,
+    JOB_PAUSED = 2,
+    JOB_SUCCEEDED = 3,
+    JOB_REJECTED = 4,
+    JOB_FAILED = 5,
+    JOB_TIMED_OUT = 6,
+    JOB_CANCELED = 7
+}
+
+table Job {
+    job_id: string;
+    commands: [Command];
+    status: JobStatusEnum;
+    name: string;
+    current_step: int32;
+    total_steps: int32;
+    current_cycle: int32;
+    total_cycles: int32;
+    paused: bool;
+    started_at: long;
+    finished_at: long;
+}
+
+table Command {
+    name: string;
+    params: [double];
+}
+
+root_type Job;
+

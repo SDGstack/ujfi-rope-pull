@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Web Control</title>
+        <style>
+            .abs_val_input,
+            .abs_unit,
+            .rel_val_input,
+            .rel_unit,
+            .right_button_rel,
+            .left_button_rel,
+            .con_stat,
+            .con_stat_text,
+            .display_unit,
+            .set_mm_per_rot,
+            .set_mm_per_rot_txt {
+                display: inline;
+            }
+        </style>
+        <script src="script.js" defer></script>
+    </head>
+
+    <body>
+        <!--Connection status elements-->
+        <p class="con_stat_text">Connection status:</p>
+        <p class="con_stat"></p>
+        <br />
+
+        <!--Display unit elements-->
+        <p class="display_unit">Display unit:</p>
+        <select class="select_unit">
+            <option value="1">Degrees</option>
+            <option value="2">Rotations</option>
+            <option value="3">Radians</option>
+            <option value="4">Millimeters</option>
+        </select>
+
+        <!--Millimeters per rotation elements-->
+        <p>
+            Current millimeters per rotation: <span class="esp_val">NaN</span>.
+        </p>
+        <!--Input field-->
+        <p class="set_mm_per_rot_txt">
+            Set millimeters per rotation:
+            <input type="number" class="set_mm_per_rot" />
+        </p>
+        <button class="submit_set_mm_per_rot">Set</button>
+
+        <!--Abs home found elements-->
+        <!--Current abs value elements-->
+        <div hidden="hidden" class="home_found">
+            <p>
+                Current value: <span class="angle_cur">0</span
+                ><span class="unit">deg</span>.
+            </p>
+        <!--Set abs value elements -->
+            <p>
+                Set value: <span class="angle_abs">0</span
+                ><span class="unit">deg.</span>
+            </p>
+        <!--Input for abs value with units elements-->
+            <input type="number" class="abs_val_input">
+            <select class="abs_unit">
+                <option value="1">Degrees</option>
+                <option value="2">Rotations</option>
+                <option value="3">Radians</option>
+                <option value="4">Millimeters</option>
+            </select>
+        <!--Abs input value control elements-->
+        <button class="set_abs">Set</button>
+            <br />
+            <button class="toggle_sign_abs">
+                Toggle absolute value direction
+            </button>
+            <button class="abs_submit_button">Move to target value</button>
+        </div>
+        
+        <!--Abs home not found elements elements-->
+        <p class="home_not_found">
+            Home not found, until zero position is set, absolute movement and
+            value is not available.
+        </p>
+
+        <!--Home finding elements-->
+        <p>Find home position:</p>
+        <button class="submit_find_home">Find home</button>
+
+        <!--Rel value elements-->
+        <!--Set rel value elements-->
+        <p>
+            Relative value change: <span class="angle_rel">0</span
+            ><span class="unit">deg</span>.
+        </p>
+        <!--Input for rel value with units elements-->
+        <p class="display_unit">Relative unit:</p>
+        <input type="number" class="rel_val_input">
+        <select class="rel_unit">
+            <option value="1">Degrees</option>
+            <option value="2">Rotations</option>
+            <option value="3">Radians</option>
+            <option value="4">Millimeters</option>
+        </select>
+        <!--Rel input value control elements-->
+        <button class="set_rel">Set</button>
+        <br />
+        <button class="toggle_sign_rel">Toggle relative value direction</button>
+        <button class="rel_submit_button">Move to target value.</button>
+    </body>
+</html>
