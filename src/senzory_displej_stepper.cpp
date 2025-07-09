@@ -132,9 +132,14 @@ float man_ctrl_multiple = 1.0;
 #define M_0X1 26
 #define CLEAR 27
 
-// Microswitch
-#define switch_pin 21
-#define switch_polarity_off HIGH
+// Upper Microswitch
+#define high_switch_pin 21
+#define high_switch_polarity_off HIGH
+
+// Lower Microswitch
+#define low_switch_pin 19
+#define low_switch_polarity_off HIGH
+long long rotations_to_lowest = 0;
 
 // DS18B20
 #define temp_sens 22 // DS18B20
@@ -366,13 +371,13 @@ void setup()
     Serial.println("Connected.");
 
     // Set switch pin according to polarity in off state
-    if (switch_polarity_off == HIGH)
+    if (high_switch_polarity_off == HIGH)
     {
-        pinMode(switch_pin, INPUT_PULLUP);
+        pinMode(high_switch_pin, INPUT_PULLUP);
     }
-    else if (switch_polarity_off == LOW)
+    else if (high_switch_polarity_off == LOW)
     {
-        pinMode(switch_pin, INPUT_PULLDOWN);
+        pinMode(high_switch_pin, INPUT_PULLDOWN);
     }
 
     // Set sensor task
@@ -876,7 +881,7 @@ void find_home(bool special = false)
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    while (digitalRead(switch_pin) == switch_polarity_off)
+    while (digitalRead(high_switch_pin) == high_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -892,6 +897,23 @@ void find_home(bool special = false)
     vTaskDelay(1 / portTICK_PERIOD_MS);
     stepper.setCurrentPositionAsHomeAndStop();
     home_found = true;
+
+    pos = 0;
+    while (digitalRead(low_switch_pin) == low_switch_polarity_off)
+    {
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+        Serial.println("Moving.");
+        stepper.moveRelativeInSteps(2);
+        pos++;
+        pos %= 360 * steps_per_rot;
+        if (special)
+        {
+            put_out("pol0", "Poloha: " + String(pos_to_angle(pos)));
+        }
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+    }
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0, 0.0);
+
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f);
@@ -919,7 +941,7 @@ void find_home(void *params)
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    while (digitalRead(switch_pin) == switch_polarity_off)
+    while (digitalRead(high_switch_pin) == high_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -935,6 +957,23 @@ void find_home(void *params)
     vTaskDelay(1 / portTICK_PERIOD_MS);
     stepper.setCurrentPositionAsHomeAndStop();
     home_found = true;
+
+    pos = 0;
+    while (digitalRead(low_switch_pin) == low_switch_polarity_off)
+    {
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+        Serial.println("Moving.");
+        stepper.moveRelativeInSteps(2);
+        pos++;
+        pos %= 360 * steps_per_rot;
+        if (special)
+        {
+            put_out("pol0", "Poloha: " + String(pos_to_angle(pos)));
+        }
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+    }
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0, 0.0);
+
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f);
