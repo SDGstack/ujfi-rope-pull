@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <fenv.h>
 #include <math.h>
+#include <assert.h>
 #include <queue>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -25,6 +26,7 @@
 #include <ESP_FlexyStepper.h>
 #include <ESP32Servo.h>
 #include <esp_task_wdt.h>
+#include <esp_log.h>
 
 // WiFi Web Manager definitions
 #ifdef suff_mem
@@ -139,7 +141,19 @@ float man_ctrl_multiple = 1.0;
 // Lower Microswitch
 #define low_switch_pin 19
 #define low_switch_polarity_off HIGH
-long long rotations_to_lowest = 0;
+double rotations_to_lowest = 0.0;
+TaskHandle_t rel_rot_task_handle = NULL;
+
+void IRAM_ATTR limit_switch_hit_irq()
+{
+    if (rel_rot_task_handle != NULL)
+    {
+        vTaskDelete(rel_rot_task_handle);
+        BaseType_t ret_val = xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
+        ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was nat pdTRUE.");
+        assert(ret_val==pdTRUE);
+    }
+}
 
 // DS18B20
 #define temp_sens 22 // DS18B20
@@ -310,6 +324,28 @@ void setup()
 
     pos_wifi_pref.begin("pos_wifi_pref", false);
 
+    // Set switch pin according to polarity in off state
+    if (high_switch_polarity_off == HIGH)
+    {
+        pinMode(high_switch_pin, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(high_switch_pin), limit_switch_hit_irq, FALLING);
+    }
+    else if (high_switch_polarity_off == LOW)
+    {
+        pinMode(high_switch_pin, INPUT_PULLDOWN);
+        attachInterrupt(digitalPinToInterrupt(high_switch_pin), limit_switch_hit_irq, RISING);
+    }
+    if (low_switch_polarity_off == HIGH)
+    {
+        pinMode(low_switch_pin, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(low_switch_pin), limit_switch_hit_irq, FALLING);
+    }
+    else if (low_switch_polarity_off == LOW)
+    {
+        pinMode(low_switch_pin, INPUT_PULLDOWN);
+        attachInterrupt(digitalPinToInterrupt(low_switch_pin), limit_switch_hit_irq, RISING);
+    }
+
 // Enable WiFi
 #ifndef suff_mem
     WiFi.mode(WIFI_MODE_STA);
@@ -359,7 +395,7 @@ void setup()
 #endif
 
     // Create rotate command mutex
-    rotate_command_mutex = xSemaphoreCreateMutex();
+    rotate_command_mutex = xSemaphoreCreateBinary();
 
     // Register MQTT handlers
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
@@ -369,16 +405,6 @@ void setup()
     Serial.println("Trying to connect to MQTT server.");
     iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
     Serial.println("Connected.");
-
-    // Set switch pin according to polarity in off state
-    if (high_switch_polarity_off == HIGH)
-    {
-        pinMode(high_switch_pin, INPUT_PULLUP);
-    }
-    else if (high_switch_polarity_off == LOW)
-    {
-        pinMode(high_switch_pin, INPUT_PULLDOWN);
-    }
 
     // Set sensor task
     xTaskCreatePinnedToCore(print_sensors, "Print sensors", 15 * 1024, NULL, 1, NULL, 1 - cpu);
@@ -580,7 +606,7 @@ ArRequestHandlerFunction web_ctrl_handle_by_angle(AsyncWebServerRequest *request
     String angle_str = request->arg("angle_val");
     Serial.println(angle_str);
     double *p = new double(-(angle_str.toDouble() + deg_per_teeth) / 360.0f);
-    xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, NULL, cpu);
+    xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, &rel_rot_task_handle, cpu);
     request->redirect(web_ctrl_prefix);
     return 0;
 }
@@ -593,7 +619,7 @@ bool mqtt_callback_rotate_angle(const std::vector<double> &params)
     {
         Serial.println("MQTT rotate by angle.");
         double *p = new double(-(params[0] + deg_per_teeth) / 360.0f);
-        xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, NULL, cpu);
+        xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, &rel_rot_task_handle, cpu);
         return true;
     }
     return false;
@@ -648,7 +674,22 @@ void task_rotate_rel(void *params)
     vTaskDelay(500 / portTICK_PERIOD_MS);
     Serial.println("Servo unlocked.");
     Serial.println("Rotate by angle task.");
-    stepper.moveRelativeInRevolutions(angle);
+    if (home_found)
+    {
+        if ((stepper.getCurrentPositionInRevolutions() + angle) > rotations_to_lowest)
+        {
+            angle = rotations_to_lowest - stepper.getCurrentPositionInRevolutions();
+        }
+        else if ((stepper.getCurrentPositionInRevolutions() + angle) < 0)
+        {
+            angle = 0 - stepper.getCurrentPositionInRevolutions();
+        }
+        stepper.moveRelativeInRevolutions(angle);
+    }
+    else
+    {
+        stepper.moveRelativeInRevolutions(angle);
+    }
     servo_lock.write(servo_lock_angle); // lock servo
     Serial.println("Servo locked.");
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -689,6 +730,7 @@ void task_rotate_abs(void *params)
     if (home_found)
     {
         Serial.println("Rotate to angle task.");
+        angle = min(max(angle, 0.0), rotations_to_lowest);
         stepper.moveToPositionInRevolutions(angle);
     }
     else
@@ -912,7 +954,7 @@ void find_home(bool special = false)
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
-    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0, 0.0);
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions() - 1.0, 0.0);
 
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -972,7 +1014,7 @@ void find_home(void *params)
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
-    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0, 0.0);
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions() - 1.0, 0.0);
 
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
