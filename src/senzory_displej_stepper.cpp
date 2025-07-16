@@ -1,4 +1,4 @@
-//#define board_devkitv1 || board_firebeetle
+// #define board_devkitv1 || board_firebeetle
 #define suff_mem
 #define simple_wifi
 #if !(defined board_firebeetle || defined board_devkitv1)
@@ -47,8 +47,8 @@ const String ctrl_script_js = "const elem_div_home_found=document.getElementsByC
 const String web_ctrl_prefix = "/ctrl";
 
 #ifdef simple_wifi
-const String simple_wifi_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>WiFi Connection</title><script defer=\"defer\" src=\"simple_connect_js.js\"></script></head><body><p>Connection status:<span class=\"con_stat\">ESP32 disconnected</span>.</p><p class=\"ip_p\" hidden>IP:<span class=\"con_ip\"></span>.</p><form class=\"wifi_form\"><label>SSID: <input type=\"text\" name=\"ssid\"></label><br><label>Password: <input type=\"password\" name=\"passw\"></label><br><input class=\"wifi_submit_button\" type=\"button\" value=\"Connect\"></form></body></html>";
-const String simple_wifi_js = "const elem_connected=document.getElementsByClassName(\"con_stat\")[0];const elem_con_ip=document.getElementsByClassName(\"con_ip\")[0];const elem_ip_p=document.getElementsByClassName(\"ip_p\")[0];const elem_wifi_form=document.getElementsByClassName(\"wifi_form\")[0];const elem_wifi_submit_button=document.getElementsByClassName(\"wifi_submit_button\")[0];elem_wifi_submit_button.addEventListener(\"click\",form_submit);setInterval(check_connect,250);async function form_submit(){try{const response=await fetch(\"simple_connect\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams(new FormData(elem_wifi_form)),});if(!response.ok){throw new Error(`Response status: ${response.status}`)}}catch{elem_connected.innerHTML=\"ESP32 disconnected (or some other form submit error)\"}}\nasync function check_connect(){try{const response=await fetch(\"simple_check_connect\");if(!response.ok){throw new Error(`Response status: ${response.status}`)}\nlet json=await response.json();console.log(text);switch(json.con_stat){case \"0\":elem_connected.innerHTML=\"WiFi connected\";elem_con_ip.innerHTML=json.ip\nelem_ip_p.removeAttribute(\"hidden\");break;case \"1\":elem_connected.innerHTML=\"attempted WiFi connection failed\";elem_ip_p.setAttribute(\"hidden\");break;case \"2\":elem_connected.innerHTML=\"WiFi disconnected\";elem_ip_p.setAttribute(\"hidden\");break}}catch{elem_connected.innerHTML=\"ESP32 disconnected\"}}";
+const String simple_wifi_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>WiFi Connection</title><script defer=\"defer\" src=\"simple_connect_js.js\"></script></head><body><p>Connection status:<span class=\"con_stat\">ESP32 disconnected</span>.</p><p class=\"ip_p\" hidden>IP:<span class=\"con_ip\"></span>.</p><form class=\"wifi_form\"><label>SSID: <input type=\"text\" name=\"ssid\"></label><br><label>Password: <input type=\"password\" name=\"passw\"></label><br><input class=\"wifi_submit_button\" type=\"button\" value=\"Connect\"></form><div class=\"saved_wifi_div\" hidden><p>There exists saved WiFi.</p><button class=\"rem_saved_wifi_button\">Remove saved WiFi & disconnect.</button></div></body></html>";
+const String simple_wifi_js = "const elem_connected=document.getElementsByClassName(\"con_stat\")[0];const elem_con_ip=document.getElementsByClassName(\"con_ip\")[0];const elem_ip_p=document.getElementsByClassName(\"ip_p\")[0];const elem_wifi_form=document.getElementsByClassName(\"wifi_form\")[0];const elem_wifi_submit_button=document.getElementsByClassName(\"wifi_submit_button\")[0];const elem_saved_wifi_div=document.getElementsByClassName(\"saved_wifi_div\")[0];const elem_rem_saved_wifi_button=document.getElementsByClassName(\"rem_saved_wifi_button\")[0];elem_wifi_submit_button.addEventListener(\"click\",form_submit);elem_rem_saved_wifi_button.addEventListener(\"click\",rem_saved_wifi);async function rem_saved_wifi(){try{const response=await fetch(\"rem_saved_wifi\")\nif(!response.ok){throw new Error(`Response status: ${response.status}`)}}catch(error){console.error(error.message);elem_connected.innerHTML=\"ESP32 disconnected (or some other remove saved WiFi error)\"}}\nasync function form_submit(){try{const response=await fetch(\"simple_connect\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams(new FormData(elem_wifi_form)),});if(!response.ok){throw new Error(`Response status: ${response.status}`)}}catch(error){console.error(error.message);elem_connected.innerHTML=\"ESP32 disconnected (or some other form submit error)\"}}\nasync function check_connect(){try{const response=await fetch(\"simple_check_connect\");if(!response.ok){throw new Error(`Response status: ${response.status}`)}\nlet json=await response.json();console.log(json);switch(json.con_stat){case \"0\":elem_connected.innerHTML=\"WiFi connected\";elem_con_ip.innerHTML=json.ip\nelem_ip_p.removeAttribute(\"hidden\");break;case \"1\":elem_connected.innerHTML=\"attempted WiFi connection failed\";elem_ip_p.setAttribute(\"hidden\",\"hidden\");break;case \"2\":elem_connected.innerHTML=\"WiFi disconnected\";elem_ip_p.setAttribute(\"hidden\",\"hidden\");break}\nif(json.saved==\"1\"){elem_saved_wifi_div.removeAttribute(\"hidden\")}else{elem_saved_wifi_div.setAttribute(\"hidden\",\"hidden\")}}catch(error){console.error(error.message);elem_connected.innerHTML=\"ESP32 disconnected\"}}\nsetInterval(check_connect,250);console.log(\"Interval enabled.\")";
 #endif
 #endif
 
@@ -276,6 +276,7 @@ ArRequestHandlerFunction web_ctrl_handle_set_mm_per_rot(AsyncWebServerRequest *r
 
 #ifdef simple_wifi
 ArRequestHandlerFunction web_ctrl_handle_connect_simple(AsyncWebServerRequest *request);
+ArRequestHandlerFunction web_ctrl_handle_rem_saved_wifi(AsyncWebServerRequest *request);
 ArRequestHandlerFunction web_ctrl_handle_connected_simple(AsyncWebServerRequest *request);
 ArRequestHandlerFunction web_ctrl_handle_simple_html(AsyncWebServerRequest *request);
 ArRequestHandlerFunction web_ctrl_handle_simple_js(AsyncWebServerRequest *request);
@@ -418,8 +419,9 @@ void setup()
     ws.on((web_ctrl_prefix).c_str(), [](AsyncWebServerRequest *request)
           { request->redirect(web_ctrl_prefix + "/"); });
 #ifdef simple_wifi
-    ws.on("/simple_check_connect", web_ctrl_handle_connected_simple);
     ws.on("/simple_connect", web_ctrl_handle_connect_simple);
+    ws.on("/rem_saved_wifi", web_ctrl_handle_rem_saved_wifi);
+    ws.on("/simple_check_connect", web_ctrl_handle_connected_simple);
     ws.on("/", web_ctrl_handle_simple_html);
     ws.on("/simple_connect_js.js", web_ctrl_handle_simple_js);
     WiFi.onEvent(wifi_simple_connected_event, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
@@ -462,6 +464,7 @@ void loop()
 {
     if (WiFi.isConnected())
     {
+        Serial.println(WiFi.localIP().toString());
         Serial.println("WiFi connected, waiting.");
         vTaskDelay(10000 / portTICK_PERIOD_MS);
     }
@@ -469,9 +472,13 @@ void loop()
     {
         String ssid = pos_wifi_pref.getString("wifi_ssid");
         String pass = pos_wifi_pref.getString("wifi_pass");
-        WiFi.disconnect();
-        WiFi.begin(ssid, pass);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        WiFi.disconnect(false, true);
+        Serial.println(ssid);
+        Serial.println(pass);
+        WiFi.begin(ssid.c_str(), pass.c_str());
+        temp_wifi_ssid = ssid;
+        temp_wifi_pass = pass;
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
     }
     else
     {
@@ -497,7 +504,7 @@ void loop()
 //         {
 //             String ssid = pos_wifi_pref.getString("wifi_ssid");
 //             String pass = pos_wifi_pref.getString("wifi_pass");
-//             WiFi.disconnect();
+//             WiFi.disconnect(false, true);
 //             WiFi.begin(ssid, pass);
 //             vTaskDelay(500 / portTICK_PERIOD_MS);
 //         }
@@ -516,35 +523,54 @@ ArRequestHandlerFunction web_ctrl_handle_connect_simple(AsyncWebServerRequest *r
     {
         pass = request->arg("passw");
     }
-    WiFi.disconnect();
+    WiFi.disconnect(false, true);
+    Serial.println("Simple WiFi: Attempting WiFi connect.");
+    Serial.println(ssid);
+    Serial.println(pass);
     WiFi.begin(ssid.c_str(), pass.c_str());
     temp_wifi_ssid = ssid;
     temp_wifi_pass = pass;
     request->send(200);
     return 0;
 }
+
+ArRequestHandlerFunction web_ctrl_handle_rem_saved_wifi(AsyncWebServerRequest *request)
+{
+    Serial.println("Simple WiFi: Removing saved WiFi.");
+    if (pos_wifi_pref.isKey("wifi_ssid"))
+    {
+        pos_wifi_pref.remove("wifi_ssid");
+        pos_wifi_pref.remove("wifi_pass");
+    }
+    WiFi.disconnect(false, true);
+    request->send(200);
+    return 0;
+}
+
 ArRequestHandlerFunction web_ctrl_handle_connected_simple(AsyncWebServerRequest *request)
 {
+    Serial.println("Simple WiFi: fetching connected.");
     String wifi_stat_str = "";
     switch (WiFi.status())
     {
     case WL_CONNECTED:
-        wifi_stat_str = "\"con_stat\"=\"0\",";
-        wifi_stat_str += "\"ip\"=\""+String(WiFi.localIP())+"\"";
+        wifi_stat_str = "\"con_stat\":\"0\",";
+        wifi_stat_str += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
         break;
     case WL_CONNECT_FAILED:
-        wifi_stat_str = "\"con_stat\"=\"1\",";
-        wifi_stat_str += "\"ip\"=\"0\"";
+        wifi_stat_str = "\"con_stat\":\"1\",";
+        wifi_stat_str += "\"ip\":\"0\",";
         break;
     case WL_DISCONNECTED:
-        wifi_stat_str = "\"con_stat\"=\"2\",";
-        wifi_stat_str += "\"ip\"=\"0\"";
+        wifi_stat_str = "\"con_stat\":\"2\",";
+        wifi_stat_str += "\"ip\":\"0\",";
         break;
     case WL_CONNECTION_LOST:
-        wifi_stat_str = "\"con_stat\"=\"2\",";
-        wifi_stat_str += "\"ip\"=\"0\"";
+        wifi_stat_str = "\"con_stat\":\"2\",";
+        wifi_stat_str += "\"ip\":\"0\",";
         break;
     }
+    wifi_stat_str += "\"saved\":\"" + String(pos_wifi_pref.isKey("wifi_ssid") ? 1 : 0) + "\"";
     wifi_stat_str = "{" + wifi_stat_str + "}";
     request->send(200, "application/json", wifi_stat_str);
     return 0;
@@ -552,20 +578,23 @@ ArRequestHandlerFunction web_ctrl_handle_connected_simple(AsyncWebServerRequest 
 
 ArRequestHandlerFunction web_ctrl_handle_simple_html(AsyncWebServerRequest *request)
 {
-    Serial.println("Handling simple wifi html.");
+    Serial.println("Simple WiFi: Handling HTML.");
     request->send(200, "text/html", simple_wifi_html);
     return 0;
 }
 
 ArRequestHandlerFunction web_ctrl_handle_simple_js(AsyncWebServerRequest *request)
 {
-    Serial.println("Handling simple wifi js.");
+    Serial.println("Simple WiFi: Handling JS.");
     request->send(200, "text/javascript", simple_wifi_js);
     return 0;
 }
 
 void wifi_simple_connected_event(WiFiEvent_t event)
 {
+    Serial.println("Simple WiFi: Saving usable WiFi.");
+    Serial.println(temp_wifi_ssid);
+    Serial.println(temp_wifi_pass);
     pos_wifi_pref.putString("wifi_ssid", temp_wifi_ssid);
     pos_wifi_pref.putString("wifi_pass", temp_wifi_pass);
 }
