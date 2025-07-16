@@ -1,5 +1,9 @@
+//#define board_devkitv1 || board_firebeetle
 #define suff_mem
 #define simple_wifi
+#if !(defined board_firebeetle || defined board_devkitv1)
+#error "No known board defined!"
+#endif
 
 #include <Arduino.h>
 #include <fenv.h>
@@ -57,7 +61,11 @@ String STA_PASS = "12345678";
 // Servo
 Servo servo_lock;
 int pos = 0;
-int servo_pin = D9;
+#ifdef board_firebeetle // FireBeetle
+#define pin_servo GPIO_NUM_2
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_servo GPIO_NUM_14
+#endif
 const float servo_small_unlock_angle = 20;
 const float servo_large_unlock_angle = 30;
 const float servo_lock_angle = 5;
@@ -80,11 +88,19 @@ const char mqtt_server_dev_command_find_home[] = "find_home";
 static const BaseType_t cpu = 0;
 
 // Stepper motor
-#define dir_pin D2
-#define step_pin D3
-#define mot_tx_pin D4
-#define mot_rx_pin D5
-#define en_pin D6
+#ifdef board_firebeetle // FireBeetle
+#define pin_dir GPIO_NUM_25
+#define pin_step GPIO_NUM_26
+#define pin_mot_tx GPIO_NUM_27
+#define pin_mot_rx GPIO_NUM_9
+#define pin_en GPIO_NUM_10
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_dir GPIO_NUM_15
+#define pin_step GPIO_NUM_2
+#define pin_mot_tx GPIO_NUM_17
+#define pin_mot_rx GPIO_NUM_16
+#define pin_en GPIO_NUM_4
+#endif
 uint16_t microstepping = 16;
 const int steps_per_rot_full_step = 400;
 const float deg_per_teeth = 360.0f / 32;
@@ -101,8 +117,13 @@ SemaphoreHandle_t rotate_command_mutex;
 const char mm_per_rot_key[] = "mm_per_rot";
 
 // Nextion display
-#define dis_tx_pin 35
-#define dis_rx_pin 34
+#ifdef board_firebeetle // FireBeetle
+#define pin_dis_tx GPIO_NUM_18
+#define pin_dis_rx GPIO_NUM_23
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_dis_tx GPIO_NUM_18
+#define pin_dis_rx GPIO_NUM_23
+#endif
 HardwareSerial hw_disp = HardwareSerial(2);
 std::queue<String> commands_queue;
 SemaphoreHandle_t commands_queue_mutex;
@@ -135,11 +156,19 @@ float man_ctrl_multiple = 1.0;
 #define CLEAR 27
 
 // Upper Microswitch
-#define high_switch_pin 21
+#ifdef board_firebeetle // FireBeetle
+#define pin_high_switch GPIO_NUM_21
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_high_switch GPIO_NUM_13
+#endif
 #define high_switch_polarity_off HIGH
 
 // Lower Microswitch
-#define low_switch_pin 19
+#ifdef board_firebeetle // FireBeetle
+#define pin_low_switch GPIO_NUM_19
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_low_switch GPIO_NUM_12
+#endif
 #define low_switch_polarity_off HIGH
 double rotations_to_lowest = 0.0;
 TaskHandle_t rel_rot_task_handle = NULL;
@@ -151,14 +180,18 @@ void IRAM_ATTR limit_switch_hit_irq()
         vTaskDelete(rel_rot_task_handle);
         BaseType_t ret_val = xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
         ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was nat pdTRUE.");
-        assert(ret_val==pdTRUE);
+        assert(ret_val == pdTRUE);
     }
 }
 
 // DS18B20
-#define temp_sens 22 // DS18B20
+#ifdef board_firebeetle // FireBeetle
+#define pin_temp_sens GPIO_NUM_6
+#elif defined board_devkitv1 // DEVKIT V1
+#define pin_temp_sens GPIO_NUM_27
+#endif
 // Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(temp_sens);
+OneWire oneWire(pin_temp_sens);
 // Pass our oneWire reference to Dallas Temperature sensor
 DallasTemperature sensors(&oneWire);
 
@@ -267,7 +300,7 @@ void setup()
     // ESP32PWM::allocateTimer(2);
     // ESP32PWM::allocateTimer(3);
     servo_lock.setPeriodHertz(50);           // standard 50 hz servo
-    servo_lock.attach(servo_pin, 500, 2500); // attaches the servo on pin 18 to the servo object
+    servo_lock.attach(pin_servo, 500, 2500); // attaches the servo on pin 18 to the servo object
 
     // // Start the DS18B20 sensor
     // sensors.begin();
@@ -283,25 +316,25 @@ void setup()
     // bme.setODR(BME68X_ODR_NONE);
 
     // // Start Nextion display UART
-    // hw_disp.setPins(dis_rx_pin, dis_tx_pin);
+    // hw_disp.setPins(pin_dis_rx, pin_dis_tx);
     // hw_disp.begin(115200);
     // send_string("rest");
     // hw_disp.onReceive(uart_mon_read);
     commands_queue_mutex = xSemaphoreCreateMutex();
 
     // Set STEP/DIR/EN pins OUTPUT, LOW
-    pinMode(step_pin, OUTPUT);
-    pinMode(dir_pin, OUTPUT);
-    pinMode(en_pin, OUTPUT);
-    digitalWrite(en_pin, LOW);
-    digitalWrite(step_pin, LOW);
-    digitalWrite(dir_pin, HIGH);
+    pinMode(pin_step, OUTPUT);
+    pinMode(pin_dir, OUTPUT);
+    pinMode(pin_en, OUTPUT);
+    digitalWrite(pin_en, LOW);
+    digitalWrite(pin_step, LOW);
+    digitalWrite(pin_dir, HIGH);
 
     // Lock servo at the beginning
     servo_lock.write(servo_lock_angle);
 
     // Start stepper motor control
-    SERIAL_PORT.setPins(mot_rx_pin, mot_tx_pin);
+    SERIAL_PORT.setPins(pin_mot_rx, pin_mot_tx);
     SERIAL_PORT.begin(115200);
     stepper_driver.begin();
     stepper_driver.toff(5);
@@ -311,8 +344,8 @@ void setup()
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
     // Start stepper motor lib
-    stepper.connectToPins(step_pin, dir_pin);
-    stepper.setEnablePin(en_pin);
+    stepper.connectToPins(pin_step, pin_dir);
+    stepper.setEnablePin(pin_en);
     stepper.setSpeedInStepsPerSecond(steps_per_rot / 2);
     stepper.setAccelerationInStepsPerSecondPerSecond(steps_per_rot * 3);
     stepper.setAccelerationInStepsPerSecondPerSecond(steps_per_rot * 3);
@@ -327,23 +360,23 @@ void setup()
     // Set switch pin according to polarity in off state
     if (high_switch_polarity_off == HIGH)
     {
-        pinMode(high_switch_pin, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(high_switch_pin), limit_switch_hit_irq, FALLING);
+        pinMode(pin_high_switch, INPUT_PULLUP);
+        attachInterrupt(pin_high_switch, limit_switch_hit_irq, FALLING);
     }
     else if (high_switch_polarity_off == LOW)
     {
-        pinMode(high_switch_pin, INPUT_PULLDOWN);
-        attachInterrupt(digitalPinToInterrupt(high_switch_pin), limit_switch_hit_irq, RISING);
+        pinMode(pin_high_switch, INPUT_PULLDOWN);
+        attachInterrupt(pin_high_switch, limit_switch_hit_irq, RISING);
     }
     if (low_switch_polarity_off == HIGH)
     {
-        pinMode(low_switch_pin, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(low_switch_pin), limit_switch_hit_irq, FALLING);
+        pinMode(pin_low_switch, INPUT_PULLUP);
+        attachInterrupt(pin_low_switch, limit_switch_hit_irq, FALLING);
     }
     else if (low_switch_polarity_off == LOW)
     {
-        pinMode(low_switch_pin, INPUT_PULLDOWN);
-        attachInterrupt(digitalPinToInterrupt(low_switch_pin), limit_switch_hit_irq, RISING);
+        pinMode(pin_low_switch, INPUT_PULLDOWN);
+        attachInterrupt(pin_low_switch, limit_switch_hit_irq, RISING);
     }
 
 // Enable WiFi
@@ -363,6 +396,7 @@ void setup()
     WiFi.mode(WIFI_MODE_APSTA);
     WiFi.softAP(AP_SSID, AP_PASS);
 #endif
+
     WiFi.setHostname(hostname);
     MDNS.begin(hostname);
 
@@ -923,7 +957,7 @@ void find_home(bool special = false)
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    while (digitalRead(high_switch_pin) == high_switch_polarity_off)
+    while (digitalRead(pin_high_switch) == high_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -941,7 +975,7 @@ void find_home(bool special = false)
     home_found = true;
 
     pos = 0;
-    while (digitalRead(low_switch_pin) == low_switch_polarity_off)
+    while (digitalRead(pin_low_switch) == low_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -983,7 +1017,7 @@ void find_home(void *params)
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    while (digitalRead(high_switch_pin) == high_switch_polarity_off)
+    while (digitalRead(pin_high_switch) == high_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -1001,7 +1035,7 @@ void find_home(void *params)
     home_found = true;
 
     pos = 0;
-    while (digitalRead(low_switch_pin) == low_switch_polarity_off)
+    while (digitalRead(pin_low_switch) == low_switch_polarity_off)
     {
         vTaskDelay(1 / portTICK_PERIOD_MS);
         Serial.println("Moving.");
@@ -1033,11 +1067,11 @@ void man_ctrl_task(void *params)
 
     while (1)
     {
-        digitalWrite(dir_pin, (man_ctrl_task_dir == -1) ? HIGH : LOW);
-        digitalWrite(step_pin, LOW);
-        digitalWrite(step_pin, HIGH);
+        digitalWrite(pin_dir, (man_ctrl_task_dir == -1) ? HIGH : LOW);
+        digitalWrite(pin_step, LOW);
+        digitalWrite(pin_step, HIGH);
         delayMicroseconds(1);
-        digitalWrite(step_pin, LOW);
+        digitalWrite(pin_step, LOW);
         stepper.setCurrentPositionInSteps(stepper.getCurrentPositionInSteps() + 1 * man_ctrl_task_dir);
         delayMicroseconds((long)(5000.0 / (man_ctrl_multiple)));
     }
