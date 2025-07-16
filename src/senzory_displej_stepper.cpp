@@ -47,8 +47,8 @@ const String ctrl_script_js = "const elem_div_home_found=document.getElementsByC
 const String web_ctrl_prefix = "/ctrl";
 
 #ifdef simple_wifi
-const String simple_wifi_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>WiFi Connection</title><script defer=\"defer\" src=\"simple_connect_js.js\"></script></head><body><p>Connection status:<span class=\"con_stat\">ESP32 disconnected</span>.</p><form class=\"wifi_form\"><label>SSID: <input type=\"text\" name=\"ssid\"></label><br><label>Password: <input type=\"password\" name=\"passw\"></label><br><input class=\"wifi_submit_button\" type=\"button\" value=\"Connect\"></form></body></html>";
-const String simple_wifi_js = "const elem_connected=document.getElementsByClassName(\"con_stat\")[0];const elem_wifi_form=document.getElementsByClassName(\"wifi_form\")[0];const elem_wifi_submit_button=document.getElementsByClassName(\"wifi_submit_button\")[0];elem_wifi_submit_button.addEventListener(\"click\",form_submit);setInterval(check_connect,250);async function form_submit(){try{const response=await fetch(\"simple_connect\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams(new FormData(elem_wifi_form)),});if(!response.ok){throw new Error(`Response status: ${response.status}`)}}catch{elem_connected.innerHTML=\"ESP32 disconnected (or some other form submit error)\"}}\nasync function check_connect(){try{const response=await fetch(\"simple_check_connect\");if(!response.ok){throw new Error(`Response status: ${response.status}`)}\nlet text=await response.text();console.log(text);switch(text){case \"0\":elem_connected.innerHTML=\"WiFi connected\";break;case \"1\":elem_connected.innerHTML=\"attempted WiFi connection failed\";break;case \"2\":elem_connected.innerHTML=\"WiFi disconnected\";break}}catch{elem_connected.innerHTML=\"ESP32 disconnected\"}}";
+const String simple_wifi_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>WiFi Connection</title><script defer=\"defer\" src=\"simple_connect_js.js\"></script></head><body><p>Connection status:<span class=\"con_stat\">ESP32 disconnected</span>.</p><p class=\"ip_p\" hidden>IP:<span class=\"con_ip\"></span>.</p><form class=\"wifi_form\"><label>SSID: <input type=\"text\" name=\"ssid\"></label><br><label>Password: <input type=\"password\" name=\"passw\"></label><br><input class=\"wifi_submit_button\" type=\"button\" value=\"Connect\"></form></body></html>";
+const String simple_wifi_js = "const elem_connected=document.getElementsByClassName(\"con_stat\")[0];const elem_con_ip=document.getElementsByClassName(\"con_ip\")[0];const elem_ip_p=document.getElementsByClassName(\"ip_p\")[0];const elem_wifi_form=document.getElementsByClassName(\"wifi_form\")[0];const elem_wifi_submit_button=document.getElementsByClassName(\"wifi_submit_button\")[0];elem_wifi_submit_button.addEventListener(\"click\",form_submit);setInterval(check_connect,250);async function form_submit(){try{const response=await fetch(\"simple_connect\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams(new FormData(elem_wifi_form)),});if(!response.ok){throw new Error(`Response status: ${response.status}`)}}catch{elem_connected.innerHTML=\"ESP32 disconnected (or some other form submit error)\"}}\nasync function check_connect(){try{const response=await fetch(\"simple_check_connect\");if(!response.ok){throw new Error(`Response status: ${response.status}`)}\nlet json=await response.json();console.log(text);switch(json.con_stat){case \"0\":elem_connected.innerHTML=\"WiFi connected\";elem_con_ip.innerHTML=json.ip\nelem_ip_p.removeAttribute(\"hidden\");break;case \"1\":elem_connected.innerHTML=\"attempted WiFi connection failed\";elem_ip_p.setAttribute(\"hidden\");break;case \"2\":elem_connected.innerHTML=\"WiFi disconnected\";elem_ip_p.setAttribute(\"hidden\");break}}catch{elem_connected.innerHTML=\"ESP32 disconnected\"}}";
 #endif
 #endif
 
@@ -179,7 +179,7 @@ void IRAM_ATTR limit_switch_hit_irq()
     {
         vTaskDelete(rel_rot_task_handle);
         BaseType_t ret_val = xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
-        ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was nat pdTRUE.");
+        ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was not pdTRUE.");
         assert(ret_val == pdTRUE);
     }
 }
@@ -529,19 +529,24 @@ ArRequestHandlerFunction web_ctrl_handle_connected_simple(AsyncWebServerRequest 
     switch (WiFi.status())
     {
     case WL_CONNECTED:
-        wifi_stat_str = "0";
+        wifi_stat_str = "\"con_stat\"=\"0\",";
+        wifi_stat_str += "\"ip\"=\""+String(WiFi.localIP())+"\"";
         break;
     case WL_CONNECT_FAILED:
-        wifi_stat_str = "1";
+        wifi_stat_str = "\"con_stat\"=\"1\",";
+        wifi_stat_str += "\"ip\"=\"0\"";
         break;
     case WL_DISCONNECTED:
-        wifi_stat_str = "2";
+        wifi_stat_str = "\"con_stat\"=\"2\",";
+        wifi_stat_str += "\"ip\"=\"0\"";
         break;
     case WL_CONNECTION_LOST:
-        wifi_stat_str = "2";
+        wifi_stat_str = "\"con_stat\"=\"2\",";
+        wifi_stat_str += "\"ip\"=\"0\"";
         break;
     }
-    request->send(200, "text/plain", wifi_stat_str);
+    wifi_stat_str = "{" + wifi_stat_str + "}";
+    request->send(200, "application/json", wifi_stat_str);
     return 0;
 }
 

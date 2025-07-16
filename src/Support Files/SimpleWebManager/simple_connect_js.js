@@ -1,7 +1,8 @@
 const elem_connected = document.getElementsByClassName("con_stat")[0];
+const elem_con_ip = document.getElementsByClassName("con_ip")[0];
+const elem_ip_p = document.getElementsByClassName("ip_p")[0];
 const elem_wifi_form = document.getElementsByClassName("wifi_form")[0];
-const elem_wifi_submit_button =
-    document.getElementsByClassName("wifi_submit_button")[0];
+const elem_wifi_submit_button = document.getElementsByClassName("wifi_submit_button")[0];
 
 elem_wifi_submit_button.addEventListener("click", form_submit);
 
@@ -31,17 +32,21 @@ async function check_connect() {
         if (!response.ok) {
             throw new Error(`Response status: ${response.status}`);
         }
-        let text = await response.text();
+        let json = await response.json();
         console.log(text);
-        switch (text) {
+        switch (json["con_stat"]) {
             case "0":
                 elem_connected.innerHTML = "WiFi connected";
+                elem_con_ip.innerHTML = json["ip"]
+                elem_ip_p.removeAttribute("hidden");
                 break;
             case "1":
                 elem_connected.innerHTML = "attempted WiFi connection failed";
+                elem_ip_p.setAttribute("hidden");
                 break;
             case "2":
                 elem_connected.innerHTML = "WiFi disconnected";
+                elem_ip_p.setAttribute("hidden");
                 break;
         }
     } catch {
