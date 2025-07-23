@@ -51,16 +51,16 @@
         <!--Current abs value elements-->
         <div hidden="hidden" class="home_found">
             <p>
-                Current value: <span class="angle_cur">0</span
+                Current position: <span class="angle_cur">0</span
                 ><span class="unit">deg</span>.
             </p>
         <!--Set abs value elements -->
             <p>
-                Set value: <span class="angle_abs">0</span
+                Absolute position: <span class="angle_abs">0</span
                 ><span class="unit">deg.</span>
             </p>
         <!--Input for abs value with units elements-->
-            <input type="number" class="abs_val_input">
+            <input type="number" class="abs_val_input" value="0">
             <select class="abs_unit">
                 <option value="1">Degrees</option>
                 <option value="2">Rotations</option>
@@ -73,7 +73,7 @@
             <button class="toggle_sign_abs">
                 Toggle absolute value direction
             </button>
-            <button class="abs_submit_button">Move to target value</button>
+            <button class="abs_submit_button">Move to target value.</button>
         </div>
         
         <!--Abs home not found elements elements-->
@@ -89,12 +89,12 @@
         <!--Rel value elements-->
         <!--Set rel value elements-->
         <p>
-            Relative value change: <span class="angle_rel">0</span
+            Relative change: <span class="angle_rel">0</span
             ><span class="unit">deg</span>.
         </p>
         <!--Input for rel value with units elements-->
         <p class="display_unit">Relative unit:</p>
-        <input type="number" class="rel_val_input">
+        <input type="number" class="rel_val_input" value="0">
         <select class="rel_unit">
             <option value="1">Degrees</option>
             <option value="2">Rotations</option>
@@ -105,6 +105,6 @@
         <button class="set_rel">Set</button>
         <br />
         <button class="toggle_sign_rel">Toggle relative value direction</button>
-        <button class="rel_submit_button">Move to target value.</button>
+        <button class="rel_submit_button">Move by set value.</button>
     </body>
 </html>

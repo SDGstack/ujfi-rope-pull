@@ -28,7 +28,7 @@
 #include <Adafruit_BME680.h>
 #include <TMCStepper.h>
 #include <ESP_FlexyStepper.h>
-#include <ESP32Servo.h>
+#include <Servo.h>
 #include <esp_task_wdt.h>
 #include <esp_log.h>
 
@@ -42,7 +42,7 @@ char hostname[] = "esp32_rot";
 
 // WiFi Web control
 #ifdef suff_mem
-const String ctrl_index_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>Web Control</title><style>.abs_unit,.abs_val_input,.con_stat,.con_stat_text,.display_unit,.left_button_rel,.rel_unit,.rel_val_input,.right_button_rel,.set_mm_per_rot,.set_mm_per_rot_txt{display:inline}</style><script src=\"script.js\" defer=\"defer\"></script></head><body><p class=\"con_stat_text\">Connection status:</p><p class=\"con_stat\"></p><br><p class=\"display_unit\">Display unit:</p><select class=\"select_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><p>Current millimeters per rotation:<span class=\"esp_val\">NaN</span>.</p><p class=\"set_mm_per_rot_txt\">Set millimeters per rotation: <input type=\"number\" class=\"set_mm_per_rot\"></p><button class=\"submit_set_mm_per_rot\">Set</button><div hidden=\"hidden\" class=\"home_found\"><p>Current value:<span class=\"angle_cur\">0</span><span class=\"unit\">deg</span>.</p><p>Set value:<span class=\"angle_abs\">0</span><span class=\"unit\">deg.</span></p><input type=\"number\" class=\"abs_val_input\"><select class=\"abs_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><button class=\"set_abs\">Set</button><br><button class=\"toggle_sign_abs\">Toggle absolute value direction</button><button class=\"abs_submit_button\">Move to target value</button></div><p class=\"home_not_found\">Home not found, until zero position is set, absolute movement and value is not available.</p><p>Find home position:</p><button class=\"submit_find_home\">Find home</button><p>Relative value change:<span class=\"angle_rel\">0</span><span class=\"unit\">deg</span>.</p><p class=\"display_unit\">Relative unit:</p><input type=\"number\" class=\"rel_val_input\"><select class=\"rel_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><button class=\"set_rel\">Set</button><br><button class=\"toggle_sign_rel\">Toggle relative value direction</button><button class=\"rel_submit_button\">Move to target value.</button></body></html>";
+const String ctrl_index_html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>Web Control</title><style>.abs_unit,.abs_val_input,.con_stat,.con_stat_text,.display_unit,.left_button_rel,.rel_unit,.rel_val_input,.right_button_rel,.set_mm_per_rot,.set_mm_per_rot_txt{display:inline}</style><script src=\"script.js\" defer=\"defer\"></script></head><body><p class=\"con_stat_text\">Connection status:</p><p class=\"con_stat\"></p><br><p class=\"display_unit\">Display unit:</p><select class=\"select_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><p>Current millimeters per rotation:<span class=\"esp_val\">NaN</span>.</p><p class=\"set_mm_per_rot_txt\">Set millimeters per rotation: <input type=\"number\" class=\"set_mm_per_rot\"></p><button class=\"submit_set_mm_per_rot\">Set</button><div hidden=\"hidden\" class=\"home_found\"><p>Current position:<span class=\"angle_cur\">0</span><span class=\"unit\">deg</span>.</p><p>Absolute position:<span class=\"angle_abs\">0</span><span class=\"unit\">deg.</span></p><input type=\"number\" class=\"abs_val_input\" value=\"0\"><select class=\"abs_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><button class=\"set_abs\">Set</button><br><button class=\"toggle_sign_abs\">Toggle absolute value direction</button><button class=\"abs_submit_button\">Move to target value.</button></div><p class=\"home_not_found\">Home not found, until zero position is set, absolute movement and value is not available.</p><p>Find home position:</p><button class=\"submit_find_home\">Find home</button><p>Relative change:<span class=\"angle_rel\">0</span><span class=\"unit\">deg</span>.</p><p class=\"display_unit\">Relative unit:</p><input type=\"number\" class=\"rel_val_input\" value=\"0\"><select class=\"rel_unit\"><option value=\"1\">Degrees</option><option value=\"2\">Rotations</option><option value=\"3\">Radians</option><option value=\"4\">Millimeters</option></select><button class=\"set_rel\">Set</button><br><button class=\"toggle_sign_rel\">Toggle relative value direction</button><button class=\"rel_submit_button\">Move by set value.</button></body></html>";
 const String ctrl_script_js = "const elem_div_home_found=document.getElementsByClassName(\"home_found\")[0];const elem_p_home_not_found=document.getElementsByClassName(\"home_not_found\")[0];const elem_submit_abs=document.getElementsByClassName(\"abs_submit_button\")[0];const elem_abs_unit=document.getElementsByClassName(\"abs_unit\")[0];const elem_toggle_sign_abs=document.getElementsByClassName(\"toggle_sign_abs\")[0];const elem_angle_abs=document.getElementsByClassName(\"angle_abs\")[0];const elem_angle_abs_input=document.getElementsByClassName(\"abs_val_input\")[0];const elem_angle_abs_input_set=document.getElementsByClassName(\"set_abs\")[0];elem_angle_abs_input_set.addEventListener(\"click\",click_set_abs_input);elem_toggle_sign_abs.addEventListener(\"click\",click_toggle_sign_abs);elem_submit_abs.addEventListener(\"click\",()=>click_submit_abs(),!1);elem_abs_unit.addEventListener(\"change\",select_unit_abs);const elem_submit_rel=document.getElementsByClassName(\"rel_submit_button\")[0];const elem_toggle_sign_rel=document.getElementsByClassName(\"toggle_sign_rel\")[0];const elem_rel_unit=document.getElementsByClassName(\"rel_unit\")[0];const elem_angle_rel=document.getElementsByClassName(\"angle_rel\")[0];const elem_angle_rel_input=document.getElementsByClassName(\"rel_val_input\")[0];const elem_angle_rel_input_set=document.getElementsByClassName(\"set_rel\")[0];elem_angle_rel_input_set.addEventListener(\"click\",click_set_rel_input);elem_toggle_sign_rel.addEventListener(\"click\",click_toggle_sign_rel);elem_submit_rel.addEventListener(\"click\",()=>click_submit_rel(),!1);elem_rel_unit.addEventListener(\"change\",select_unit_rel);const elem_angle_cur=document.getElementsByClassName(\"angle_cur\")[0];const elem_find_home=document.getElementsByClassName(\"submit_find_home\")[0];elem_find_home.addEventListener(\"click\",()=>click_submit_find_home(),!1);const elem_con_stat=document.getElementsByClassName(\"con_stat\")[0];var disp_coef_deg_per_unit=1.0;const elem_select_unit=document.getElementsByClassName(\"select_unit\")[0];const elem_unit_text=document.getElementsByClassName(\"unit\");const elem_current_mm_per_rot=document.getElementsByClassName(\"esp_val\")[0];const elem_set_mm_per_rot=document.getElementsByClassName(\"set_mm_per_rot\")[0];const elem_submit_set_mm_per_rot=document.getElementsByClassName(\"submit_set_mm_per_rot\")[0];var current_mm_per_rot=NaN;elem_select_unit.addEventListener(\"change\",select_unit_change);elem_submit_set_mm_per_rot.addEventListener(\"click\",click_submit_mm_per_rot);var abs_angle=parseInt(elem_angle_cur.innerHTML)*disp_coef_deg_per_unit;var rel_angle=parseInt(elem_angle_cur.innerHTML)*disp_coef_deg_per_unit;function select_unit_abs(){if(isNaN(current_mm_per_rot)&&elem_abs_unit.value==\"4\"){elem_angle_abs_input_set.setAttribute(\"disabled\",\"true\")}else{elem_angle_abs_input_set.removeAttribute(\"disabled\")}}\nfunction select_unit_rel(){if(isNaN(current_mm_per_rot)&&elem_rel_unit.value==\"4\"){elem_angle_rel_input_set.setAttribute(\"disabled\",\"true\")}else{elem_angle_rel_input_set.removeAttribute(\"disabled\")}}\nfunction select_unit_change(){let unit_text=\"\";switch(elem_select_unit.value){case \"1\":disp_coef_deg_per_unit=1.0;unit_text=\"deg\";break;case \"2\":disp_coef_deg_per_unit=360.0;unit_text=\"rot\";break;case \"3\":disp_coef_deg_per_unit=360.0/(2.0*Math.PI);unit_text=\"rad\";break;case \"4\":disp_coef_deg_per_unit=360.0/current_mm_per_rot;unit_text=\"mm\";break}\nfor(var i=0;i<elem_unit_text.length;i++){elem_unit_text[i].innerHTML=unit_text}\nrefresh_unit_vals()}\nfunction refresh_unit_vals(){elem_angle_abs.innerHTML=(abs_angle/disp_coef_deg_per_unit).toFixed(2);elem_angle_rel.innerHTML=(rel_angle/disp_coef_deg_per_unit).toFixed(2)}\nfunction click_set_abs_input(){let local_unit_mult=disp_coef_deg_per_unit;if(isNaN(disp_coef_deg_per_unit)){return}\nswitch(elem_abs_unit.value){case \"1\":local_unit_mult=1.0;break;case \"2\":local_unit_mult=360.0;break;case \"3\":local_unit_mult=360.0/(2.0*Math.PI);break;case \"4\":if(isNaN(current_mm_per_rot)){return}\nlocal_unit_mult=360.0/current_mm_per_rot;break}\nabs_angle=parseInt(elem_angle_abs_input.value)*local_unit_mult;refresh_unit_vals()}\nfunction click_set_rel_input(){let local_unit_mult=disp_coef_deg_per_unit;if(isNaN(disp_coef_deg_per_unit)){return}\nswitch(elem_rel_unit.value){case \"1\":local_unit_mult=1.0;break;case \"2\":local_unit_mult=360.0;break;case \"3\":local_unit_mult=360.0/(2.0*Math.PI);break;case \"4\":if(isNaN(current_mm_per_rot)){return}\nlocal_unit_mult=360.0/current_mm_per_rot;break}\nrel_angle=parseInt(elem_angle_rel_input.value)*local_unit_mult;refresh_unit_vals()}\nfunction click_toggle_sign_abs(){abs_angle*=-1;refresh_unit_vals()}\nfunction click_toggle_sign_rel(){rel_angle*=-1;refresh_unit_vals()}\nasync function click_submit_mm_per_rot(){const response=await fetch(\"/set_mm_per_rot\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams({mm_per_rot:elem_set_mm_per_rot.value}),})}\nasync function click_submit_find_home(){const response=await fetch(\"/find_home\")}\nasync function click_submit_rel(){const response=await fetch(\"/by_angle\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams({angle_val:rel_angle}),})}\nasync function click_submit_abs(){const response=await fetch(\"/set_angle\",{method:\"POST\",headers:{\"Content-Type\":\"application/x-www-form-urlencoded\",},body:new URLSearchParams({angle_val:abs_angle}),})}\nasync function refresh_angle(){url=\"fetch_angle\";try{const response=await fetch(url);if(!response.ok){throw new Error(`Response status: ${response.status}`)}\nconst json=await response.json();let angle=parseFloat(json.angle_val);current_mm_per_rot=parseFloat(json.mm_per_rot);elem_current_mm_per_rot.innerHTML=current_mm_per_rot;if(!isNaN(angle)){elem_angle_cur.innerHTML=angle/disp_coef_deg_per_unit;elem_div_home_found.removeAttribute(\"hidden\");elem_p_home_not_found.setAttribute(\"hidden\",\"hidden\")}else{elem_p_home_not_found.removeAttribute(\"hidden\");elem_div_home_found.setAttribute(\"hidden\",\"hidden\")}\nelem_submit_set_mm_per_rot.removeAttribute(\"hidden\");elem_set_mm_per_rot.removeAttribute(\"disabled\");elem_con_stat.innerHTML=\"ESP32 connected\";select_unit_change()}catch(error){console.error(\"Angle fetch error: \"+error.message);elem_con_stat.innerHTML=\"ESP32 disconnected.\";current_mm_per_rot=NaN;elem_current_mm_per_rot.innerHTML=current_mm_per_rot;elem_submit_set_mm_per_rot.setAttribute(\"hidden\",\"hidden\");elem_set_mm_per_rot.setAttribute(\"disabled\",\"true\");select_unit_change()}}\nsetInterval(refresh_angle,250);console.log(\"Interval enabled.\")";
 const String web_ctrl_prefix = "/ctrl";
 
@@ -62,13 +62,13 @@ String STA_PASS = "12345678";
 Servo servo_lock;
 int pos = 0;
 #ifdef board_firebeetle // FireBeetle
-#define pin_servo GPIO_NUM_2
+#define pin_servo D9
 #elif defined board_devkitv1 // DEVKIT V1
 #define pin_servo GPIO_NUM_14
 #endif
 const float servo_small_unlock_angle = 20;
 const float servo_large_unlock_angle = 30;
-const float servo_lock_angle = 5;
+const float servo_lock_angle = 2;
 
 // MQTT definitions (on mqtt.smogrovic.com - auth username is device id)
 const char mqtt_server_url[] = "mqtt.smogrovic.com";
@@ -118,8 +118,8 @@ const char mm_per_rot_key[] = "mm_per_rot";
 
 // Nextion display
 #ifdef board_firebeetle // FireBeetle
-#define pin_dis_tx GPIO_NUM_18
-#define pin_dis_rx GPIO_NUM_23
+#define pin_dis_tx GPIO_NUM_17
+#define pin_dis_rx GPIO_NUM_16
 #elif defined board_devkitv1 // DEVKIT V1
 #define pin_dis_tx GPIO_NUM_18
 #define pin_dis_rx GPIO_NUM_23
@@ -157,7 +157,7 @@ float man_ctrl_multiple = 1.0;
 
 // Upper Microswitch
 #ifdef board_firebeetle // FireBeetle
-#define pin_high_switch GPIO_NUM_21
+#define pin_high_switch GPIO_NUM_18
 #elif defined board_devkitv1 // DEVKIT V1
 #define pin_high_switch GPIO_NUM_13
 #endif
@@ -165,7 +165,7 @@ float man_ctrl_multiple = 1.0;
 
 // Lower Microswitch
 #ifdef board_firebeetle // FireBeetle
-#define pin_low_switch GPIO_NUM_19
+#define pin_low_switch GPIO_NUM_21
 #elif defined board_devkitv1 // DEVKIT V1
 #define pin_low_switch GPIO_NUM_12
 #endif
@@ -175,10 +175,12 @@ TaskHandle_t rel_rot_task_handle = NULL;
 
 void IRAM_ATTR limit_switch_hit_irq()
 {
-    if (rel_rot_task_handle != NULL)
+    if ((rel_rot_task_handle != NULL) && digitalRead(pin_low_switch) == LOW)
     {
+        Serial.println("Handling limit switch.");
         vTaskDelete(rel_rot_task_handle);
-        BaseType_t ret_val = xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
+        BaseType_t ret_val =
+            xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
         ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was not pdTRUE.");
         assert(ret_val == pdTRUE);
     }
@@ -186,7 +188,7 @@ void IRAM_ATTR limit_switch_hit_irq()
 
 // DS18B20
 #ifdef board_firebeetle // FireBeetle
-#define pin_temp_sens GPIO_NUM_6
+#define pin_temp_sens GPIO_NUM_14
 #elif defined board_devkitv1 // DEVKIT V1
 #define pin_temp_sens GPIO_NUM_27
 #endif
@@ -295,13 +297,9 @@ void setup()
     // Start the Serial Monitor
     Serial.begin(115200);
 
-    // ESP32
-    ESP32PWM::allocateTimer(0);
-    // ESP32PWM::allocateTimer(1);
-    // ESP32PWM::allocateTimer(2);
-    // ESP32PWM::allocateTimer(3);
-    servo_lock.setPeriodHertz(50);           // standard 50 hz servo
-    servo_lock.attach(pin_servo, 500, 2500); // attaches the servo on pin 18 to the servo object
+    // Servo
+    pinMode(pin_servo, OUTPUT);
+    servo_lock.attach(pin_servo, Servo::CHANNEL_NOT_ATTACHED, 0, 180, 500, 2500, 50);
 
     // // Start the DS18B20 sensor
     // sensors.begin();
@@ -362,12 +360,10 @@ void setup()
     if (high_switch_polarity_off == HIGH)
     {
         pinMode(pin_high_switch, INPUT_PULLUP);
-        attachInterrupt(pin_high_switch, limit_switch_hit_irq, FALLING);
     }
     else if (high_switch_polarity_off == LOW)
     {
         pinMode(pin_high_switch, INPUT_PULLDOWN);
-        attachInterrupt(pin_high_switch, limit_switch_hit_irq, RISING);
     }
     if (low_switch_polarity_off == HIGH)
     {
@@ -432,6 +428,10 @@ void setup()
 
     // Create rotate command mutex
     rotate_command_mutex = xSemaphoreCreateBinary();
+    assert(rotate_command_mutex != NULL);
+    Serial.println(uxSemaphoreGetCount(rotate_command_mutex));
+    xSemaphoreGive(rotate_command_mutex);
+    Serial.println(uxSemaphoreGetCount(rotate_command_mutex));
 
     // Register MQTT handlers
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
@@ -636,7 +636,7 @@ ArRequestHandlerFunction web_ctrl_handle_fetch_angle(AsyncWebServerRequest *requ
     if (home_found)
     {
         // angle = fmodf(fmodf(-stepper.getCurrentPositionInRevolutions() * 360.0f, 360.0f) + 360.0f, 360.0f);
-        angle = -stepper.getCurrentPositionInRevolutions() * 360.0f;
+        angle = stepper.getCurrentPositionInRevolutions() * 360.0f;
     }
     String local = "{\"angle_val\": \"" + String(angle) + "\"," + "\"mm_per_rot\": " + "\"" + String(mm_per_rot) + "\"" + "}";
     request->send(200, "application/json", local);
@@ -662,7 +662,7 @@ ArRequestHandlerFunction web_ctrl_handle_set_angle(AsyncWebServerRequest *reques
     Serial.println("Web control: Handling set angle.");
     String angle_str = request->arg("angle_val");
     Serial.println(angle_str);
-    double *p = new double(-(angle_str.toDouble() + deg_per_teeth) / 360.0f);
+    double *p = new double((angle_str.toDouble() + deg_per_teeth) / 360.0f);
     xTaskCreatePinnedToCore(task_rotate_abs, "abs_rot_t", 10 * 1024, (void *)p, 1, NULL, cpu);
     request->redirect(web_ctrl_prefix);
     return 0;
@@ -673,7 +673,7 @@ ArRequestHandlerFunction web_ctrl_handle_by_angle(AsyncWebServerRequest *request
     Serial.println("Web control: Handling rotate by angle.");
     String angle_str = request->arg("angle_val");
     Serial.println(angle_str);
-    double *p = new double(-(angle_str.toDouble() + deg_per_teeth) / 360.0f);
+    double *p = new double((angle_str.toDouble() + deg_per_teeth) / 360.0f);
     xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, &rel_rot_task_handle, cpu);
     request->redirect(web_ctrl_prefix);
     return 0;
@@ -717,6 +717,7 @@ bool mqtt_callback_find_home(const std::vector<double> &params)
 // Task function for relative rotation
 void task_rotate_rel(void *params)
 {
+    Serial.println("Func to rel rot entered, waiting for mutex");
     // Set watchdog to 30s
     esp_task_wdt_init(30, false);
 
