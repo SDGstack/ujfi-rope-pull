@@ -181,7 +181,9 @@ void IRAM_ATTR limit_switch_hit_irq()
         vTaskDelete(rel_rot_task_handle);
         BaseType_t ret_val =
             xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
-        ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was not pdTRUE.");
+        if(ret_val != pdTRUE){
+            ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was not pdTRUE.");
+        }
         assert(ret_val == pdTRUE);
     }
 }
