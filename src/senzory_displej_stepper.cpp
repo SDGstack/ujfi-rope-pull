@@ -784,7 +784,7 @@ void task_rotate_abs(void *params)
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(-deg_per_teeth / 2 / 360.0f); // Move wheel so that lock won't get stuck
     vTaskDelay(500 / portTICK_PERIOD_MS);
-    if (angle > 0)
+    if ((angle-stepper.getCurrentPositionInRevolutions()) > 0)
     {
         servo_lock.write(servo_small_unlock_angle); // unlock servo
     }
