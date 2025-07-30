@@ -173,21 +173,6 @@ float man_ctrl_multiple = 1.0;
 double rotations_to_lowest = 0.0;
 TaskHandle_t rel_rot_task_handle = NULL;
 
-void IRAM_ATTR limit_switch_hit_irq()
-{
-    if ((rel_rot_task_handle != NULL) && digitalRead(pin_low_switch) == LOW)
-    {
-        Serial.println("Handling limit switch.");
-        vTaskDelete(rel_rot_task_handle);
-        BaseType_t ret_val =
-            xSemaphoreGiveFromISR(rotate_command_mutex, NULL);
-        if(ret_val != pdTRUE){
-            ESP_LOGE("Rotation limit switch interrupt handler: ", "Fatal error - return value of unlocking mutex was not pdTRUE.");
-        }
-        assert(ret_val == pdTRUE);
-    }
-}
-
 // DS18B20
 #ifdef board_firebeetle // FireBeetle
 #define pin_temp_sens GPIO_NUM_14
@@ -370,12 +355,10 @@ void setup()
     if (low_switch_polarity_off == HIGH)
     {
         pinMode(pin_low_switch, INPUT_PULLUP);
-        attachInterrupt(pin_low_switch, limit_switch_hit_irq, FALLING);
     }
     else if (low_switch_polarity_off == LOW)
     {
         pinMode(pin_low_switch, INPUT_PULLDOWN);
-        attachInterrupt(pin_low_switch, limit_switch_hit_irq, RISING);
     }
 
 // Enable WiFi
@@ -734,11 +717,11 @@ void task_rotate_rel(void *params)
     vTaskDelay(500 / portTICK_PERIOD_MS);
     if (angle > 0)
     {
-        servo_lock.write(servo_small_unlock_angle); // unlock servo
+        servo_lock.write(servo_large_unlock_angle); // unlock servo
     }
     else
     {
-        servo_lock.write(servo_large_unlock_angle); // unlock servo
+        servo_lock.write(servo_small_unlock_angle); // unlock servo
     }
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
@@ -746,25 +729,36 @@ void task_rotate_rel(void *params)
     Serial.println("Servo unlocked.");
     Serial.println("Rotate by angle task.");
     if (home_found)
-    {
-        if ((stepper.getCurrentPositionInRevolutions() + angle) > rotations_to_lowest)
-        {
-            angle = rotations_to_lowest - stepper.getCurrentPositionInRevolutions();
-        }
-        else if ((stepper.getCurrentPositionInRevolutions() + angle) < 0)
-        {
-            angle = 0 - stepper.getCurrentPositionInRevolutions();
-        }
-        stepper.moveRelativeInRevolutions(angle);
+    {   // Making sure angle is in allowed range (<0; rotations_to_lowest>)
+        angle = stepper.getCurrentPositionInRevolutions() + angle;
+        min(max(angle, 0.0), rotations_to_lowest);
+        stepper.moveToPositionInRevolutions(angle);
     }
-    else
-    {
-        stepper.moveRelativeInRevolutions(angle);
+
+    else {
+        stepper.setTargetPositionRelativeInRevolutions(angle);
+        while(stepper.getDistanceToTargetSigned()!=0){
+            if((digitalRead(pin_low_switch) == low_switch_polarity_off)&&(digitalRead(pin_high_switch) == high_switch_polarity_off)){
+                stepper.processMovement();
+            }
+            else if(digitalRead(pin_high_switch) != high_switch_polarity_off){
+                stepper.setTargetPositionRelativeInRevolutions(0);
+                stepper.moveRelativeInRevolutions(1);
+                break;
+            }
+            else{
+                stepper.setTargetPositionRelativeInRevolutions(0);
+                stepper.moveRelativeInRevolutions(-1);
+                break;
+            }
+        }
     }
+    
     servo_lock.write(servo_lock_angle); // lock servo
     Serial.println("Servo locked.");
     vTaskDelay(500 / portTICK_PERIOD_MS);
-    stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f);
+    stepper.moveRelativeInRevolutions(-deg_per_teeth / 2 / 360.0f); // Move wheel so that forward and backward movement don't affect it's position (if for example rotation angle = 0)
+    stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f); // Move the wheel so that it is stuck to lock
     adjust_position_to_whole_teeth();
     stepper.disableDriver();
     xSemaphoreGive(rotate_command_mutex);
@@ -788,20 +782,20 @@ void task_rotate_abs(void *params)
     vTaskDelay(500 / portTICK_PERIOD_MS);
     if ((angle-stepper.getCurrentPositionInRevolutions()) > 0)
     {
-        servo_lock.write(servo_small_unlock_angle); // unlock servo
+        servo_lock.write(servo_large_unlock_angle); // unlock servo by small angle
     }
     else
     {
-        servo_lock.write(servo_large_unlock_angle); // unlock servo
+        servo_lock.write(servo_small_unlock_angle); // unlock servo by large angle
     }
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(deg_per_teeth / 2 / 360.0f); // Move the wheel back
     vTaskDelay(500 / portTICK_PERIOD_MS);
     Serial.println("Servo unlocked.");
     if (home_found)
-    {
+    {   // Making sure angle is in allowed range (<0; rotations_to_lowest>)
         Serial.println("Rotate to angle task.");
-        angle = min(max(angle, 0.0), rotations_to_lowest);
+        angle = max(min(angle, 0.0), rotations_to_lowest);
         stepper.moveToPositionInRevolutions(angle);
     }
     else
@@ -811,6 +805,7 @@ void task_rotate_abs(void *params)
     servo_lock.write(servo_lock_angle); // lock servo
     Serial.println("Servo locked.");
     vTaskDelay(500 / portTICK_PERIOD_MS);
+    stepper.moveRelativeInRevolutions(-deg_per_teeth / 2 / 360.0f); // Move wheel so that forward and backward movement don't affect it's position (if for example rotation angle = 0)
     stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f); // Move the wheel so that it is stuck to lock
     adjust_position_to_whole_teeth();
     stepper.disableDriver();
@@ -1009,8 +1004,7 @@ void find_home(bool special = false)
     }
     vTaskDelay(1 / portTICK_PERIOD_MS);
     stepper.setCurrentPositionAsHomeAndStop();
-    home_found = true;
-
+    
     pos = 0;
     while (digitalRead(pin_low_switch) == low_switch_polarity_off)
     {
@@ -1025,8 +1019,17 @@ void find_home(bool special = false)
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
-    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions() - 1.0, 0.0);
 
+    while (digitalRead(pin_low_switch) != low_switch_polarity_off)
+    {
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+        stepper.moveRelativeInSteps(-2);
+    }
+
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0f, 0.0f);
+    
+    home_found = true;
+    
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper.moveRelativeInRevolutions(deg_per_teeth / 360.0f);
@@ -1069,8 +1072,7 @@ void find_home(void *params)
     }
     vTaskDelay(1 / portTICK_PERIOD_MS);
     stepper.setCurrentPositionAsHomeAndStop();
-    home_found = true;
-
+    
     pos = 0;
     while (digitalRead(pin_low_switch) == low_switch_polarity_off)
     {
@@ -1085,7 +1087,16 @@ void find_home(void *params)
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
-    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions() - 1.0, 0.0);
+
+    while (digitalRead(pin_low_switch) != low_switch_polarity_off)
+    {
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+        stepper.moveRelativeInSteps(-2);
+    }
+
+    rotations_to_lowest = max(stepper.getCurrentPositionInRevolutions()-1.0f, 0.0f);
+    
+    home_found = true;
 
     servo_lock.write(servo_lock_angle); // lock servo
     vTaskDelay(500 / portTICK_PERIOD_MS);
