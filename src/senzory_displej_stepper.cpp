@@ -736,20 +736,36 @@ void task_rotate_rel(void *params)
     }
 
     else {
-        stepper.setTargetPositionRelativeInRevolutions(angle);
-        while(stepper.getDistanceToTargetSigned()!=0){
-            if((digitalRead(pin_low_switch) == low_switch_polarity_off)&&(digitalRead(pin_high_switch) == high_switch_polarity_off)){
+        esp_task_wdt_init(60, false);
+        float init = stepper.getCurrentPositionInRevolutions();
+        if(angle>=0){
+            stepper.startJogging(1);
+            while(((stepper.getCurrentPositionInRevolutions()-init)<angle)&&(digitalRead(pin_low_switch) == low_switch_polarity_off)){
                 stepper.processMovement();
+                Serial.println("Processing movement.");
             }
-            else if(digitalRead(pin_high_switch) != high_switch_polarity_off){
-                stepper.setTargetPositionRelativeInRevolutions(0);
-                stepper.moveRelativeInRevolutions(1);
-                break;
+            stepper.stopJogging();
+            if(digitalRead(pin_low_switch) != low_switch_polarity_off){
+                Serial.println("Low switch hit.");
+                stepper.moveRelativeInRevolutions(-1);
             }
             else{
-                stepper.setTargetPositionRelativeInRevolutions(0);
-                stepper.moveRelativeInRevolutions(-1);
-                break;
+                Serial.println("Movement finished.");
+            }
+        }
+        else{
+            stepper.startJogging(-1);
+            while(((stepper.getCurrentPositionInRevolutions()-init)>angle)&&(digitalRead(pin_high_switch) == high_switch_polarity_off)){
+                stepper.processMovement();
+                Serial.println("Processing movement.");
+            }
+            stepper.stopJogging();
+            if(digitalRead(pin_high_switch) != high_switch_polarity_off){
+                Serial.println("High switch hit.");
+                stepper.moveRelativeInRevolutions(1);
+            }
+            else{
+                Serial.println("Movement finished.");
             }
         }
     }
@@ -795,7 +811,7 @@ void task_rotate_abs(void *params)
     if (home_found)
     {   // Making sure angle is in allowed range (<0; rotations_to_lowest>)
         Serial.println("Rotate to angle task.");
-        angle = max(min(angle, 0.0), rotations_to_lowest);
+        angle = min(max(angle, 0.0), rotations_to_lowest);
         stepper.moveToPositionInRevolutions(angle);
     }
     else
