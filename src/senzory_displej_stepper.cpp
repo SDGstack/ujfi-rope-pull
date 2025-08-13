@@ -730,8 +730,8 @@ void task_rotate_rel(void *params)
     Serial.println("Rotate by angle task.");
     if (home_found)
     { // Making sure angle is in allowed range (<0; rotations_to_lowest>)
-        angle = stepper.getCurrentPositionInRevolutions() + angle;
-        min(max(angle, 0.0), rotations_to_lowest);
+        angle += stepper.getCurrentPositionInRevolutions();
+        angle = min(max(angle, 1.0), rotations_to_lowest);
         stepper.moveToPositionInRevolutions(angle);
     }
 
@@ -739,18 +739,25 @@ void task_rotate_rel(void *params)
     {
         esp_task_wdt_init(60, false);
         float init = stepper.getCurrentPositionInRevolutions();
+        stepper.setAccelerationInStepsPerSecondPerSecond(steps_per_rot * 100);
+        stepper.setSpeedInStepsPerSecond(steps_per_rot*100);
         if (angle >= 0)
         {
-            stepper.startJogging(1);
-            while (((stepper.getCurrentPositionInRevolutions() - init) < angle) && (digitalRead(pin_low_switch) == low_switch_polarity_off))
+
+            //stepper.startJogging(1);
+            //while (((stepper.getCurrentPositionInRevolutions() - init) < angle) && (digitalRead(pin_low_switch) == low_switch_polarity_off))
+            stepper.setTargetPositionRelativeInRevolutions(angle);
+            while ((stepper.getDistanceToTargetSigned() != 0) && (digitalRead(pin_low_switch) == low_switch_polarity_off))
             {
                 stepper.processMovement();
-                Serial.println("Processing movement.");
+                //Serial.println(stepper.getCurrentPositionInRevolutions(), 10);
+                //Serial.println("Processing movement.");
             }
-            stepper.stopJogging();
+            stepper.emergencyStop();
             if (digitalRead(pin_low_switch) != low_switch_polarity_off)
             {
                 Serial.println("Low switch hit.");
+                stepper.moveRelativeInRevolutions(-1);
                 stepper.moveRelativeInRevolutions(-1);
             }
             else
@@ -760,16 +767,20 @@ void task_rotate_rel(void *params)
         }
         else
         {
-            stepper.startJogging(-1);
-            while (((stepper.getCurrentPositionInRevolutions() - init) > angle) && (digitalRead(pin_high_switch) == high_switch_polarity_off))
+            //stepper.startJogging(-1);
+            //while (((stepper.getCurrentPositionInRevolutions() - init) > angle) && (digitalRead(pin_high_switch) == high_switch_polarity_off))
+            stepper.setTargetPositionRelativeInRevolutions(angle);
+            while ((stepper.getDistanceToTargetSigned() != 0) && (digitalRead(pin_high_switch) == high_switch_polarity_off))
             {
                 stepper.processMovement();
-                Serial.println("Processing movement.");
+                //Serial.println(stepper.getCurrentPositionInRevolutions(), 10);
+                //Serial.println("Processing movement.");
             }
-            stepper.stopJogging();
+            stepper.emergencyStop();
             if (digitalRead(pin_high_switch) != high_switch_polarity_off)
             {
                 Serial.println("High switch hit.");
+                stepper.moveRelativeInRevolutions(1);
                 stepper.moveRelativeInRevolutions(1);
             }
             else
@@ -778,7 +789,8 @@ void task_rotate_rel(void *params)
             }
         }
     }
-
+    stepper.setAccelerationInStepsPerSecondPerSecond(steps_per_rot * 3);
+    stepper.setSpeedInStepsPerSecond(steps_per_rot);
     servo_lock.write(servo_lock_angle); // lock servo
     Serial.println("Servo locked.");
     vTaskDelay(500 / portTICK_PERIOD_MS);
