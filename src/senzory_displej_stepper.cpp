@@ -83,6 +83,10 @@ const char mqtt_server_dev_stepper_angle[] = "stepper_angle";
 const char mqtt_server_dev_command_rotate_angle[] = "rot_angle";
 const char mqtt_server_dev_command_rotate_to_angle[] = "rot_to_angle";
 const char mqtt_server_dev_command_find_home[] = "find_home";
+const char mqtt_server_dev_command_start_light_sleep[] = "start_light_sleep";
+const char mqtt_server_dev_command_stop_light_sleep[] = "stop_light_sleep";
+const char mqtt_server_dev_light_sleep_status[] = "light_sleep_status";
+TaskHandle_t light_sleep_task_handle = NULL;
 
 // FreeRTOS definitions
 static const BaseType_t cpu = 0;
@@ -245,10 +249,13 @@ void find_home(void *params);
 bool mqtt_callback_rotate_angle(const std::vector<double> &params);
 bool mqtt_callback_rotate_to_angle(const std::vector<double> &params);
 bool mqtt_callback_find_home(const std::vector<double> &params);
+bool mqtt_callback_start_light_sleep(const std::vector<double> &params);
+bool mqtt_callback_stop_light_sleep(const std::vector<double> &params);
 
 // MQTT task functions
 void task_rotate_abs(void *params);
 void task_rotate_rel(void *params);
+void task_light_sleep(void *params);
 
 // WiFi callback
 void on_wifi_connected(WiFiEvent_t event);
@@ -422,6 +429,8 @@ void setup()
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
     job_manager.register_command(mqtt_server_dev_command_rotate_to_angle, mqtt_callback_rotate_to_angle);
     job_manager.register_command(mqtt_server_dev_command_find_home, mqtt_callback_find_home);
+    job_manager.register_command(mqtt_server_dev_command_start_light_sleep, mqtt_callback_start_light_sleep);
+    job_manager.register_command(mqtt_server_dev_command_stop_light_sleep, mqtt_callback_stop_light_sleep);
     job_manager.init();
     Serial.println("Trying to connect to MQTT server.");
     iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
@@ -697,6 +706,33 @@ bool mqtt_callback_find_home(const std::vector<double> &params)
     Serial.println("MQTT find home.");
     xTaskCreatePinnedToCore(find_home, "find_home_t", 10 * 1024, (void *)false, 1, NULL, cpu);
     return true;
+}
+
+// MQTT start light sleep callback function
+bool mqtt_callback_start_light_sleep(const std::vector<double> &params){
+        xTaskCreatePinnedToCore(task_light_sleep, "light_sleep", 10 * 1024, (void *)&params[0], 1, &light_sleep_task_handle, cpu);
+        return true;
+}
+
+//MQTT stop light sleep callback function
+bool mqtt_callback_stop_light_sleep(const std::vector<double> &params){
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+        if(light_sleep_task_handle != NULL){
+            vTaskDelete(light_sleep_task_handle);
+            light_sleep_task_handle = NULL;
+        }
+        return true;
+}
+
+void task_light_sleep(void *params){
+    double time = *((double*) params)*1000000.0;
+    esp_sleep_enable_timer_wakeup((uint64_t) time);
+    while(true){
+        iotIs.send_data(mqtt_server_dev_light_sleep_status, 0.0);
+        esp_light_sleep_start();
+        iotIs.send_data(mqtt_server_dev_light_sleep_status, time);
+        vTaskDelay(1000/portTICK_PERIOD_MS);
+    }
 }
 
 // Task function for relative rotation
