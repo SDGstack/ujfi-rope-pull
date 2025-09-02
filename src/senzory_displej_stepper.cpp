@@ -70,8 +70,8 @@ const float servo_small_unlock_angle = 20;
 const float servo_large_unlock_angle = 30;
 const float servo_lock_angle = 2;
 
-// MQTT definitions (on mqtt.smogrovic.com - auth username is device id)
-const char mqtt_server_url[] = "mqtt.smogrovic.com";
+// MQTT definitions (on isdg.fei.stuba.sk - auth username is device id)
+const char mqtt_server_url[] = "isdg.fei.stuba.sk";
 const int mqtt_server_port = 1883;
 const char mqtt_server_dev_id[] = "wxe6BVrTWJ1Kuib0SigC2JRU";
 const char mqtt_server_dev_ds18b20[] = "ds18b20";
@@ -426,15 +426,13 @@ void setup()
     Serial.println(uxSemaphoreGetCount(rotate_command_mutex));
 
     // Register MQTT handlers
+    job_manager.init();
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
     job_manager.register_command(mqtt_server_dev_command_rotate_to_angle, mqtt_callback_rotate_to_angle);
     job_manager.register_command(mqtt_server_dev_command_find_home, mqtt_callback_find_home);
     job_manager.register_command(mqtt_server_dev_command_start_light_sleep, mqtt_callback_start_light_sleep);
     job_manager.register_command(mqtt_server_dev_command_stop_light_sleep, mqtt_callback_stop_light_sleep);
-    job_manager.init();
-    Serial.println("Trying to connect to MQTT server.");
-    iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
-    Serial.println("Connected.");
+    Serial.println("Adding jobs to job manager.");
 
     // Set sensor task
     xTaskCreatePinnedToCore(print_sensors, "Print sensors", 15 * 1024, NULL, 1, NULL, 1 - cpu);
@@ -478,36 +476,11 @@ void loop()
     {
         vTaskDelay(10000 / portTICK_PERIOD_MS);
     }
-    // vTaskDelete(NULL);
 }
 
 #ifdef suff_mem
 
 #ifdef simple_wifi
-
-// void reconn_wifi_simple(void *params)
-// {
-//     while (1)
-//     {
-//         if (WiFi.isConnected())
-//         {
-//             Serial.println("WiFi connected, waiting.");
-//             vTaskDelay(10000 / portTICK_PERIOD_MS);
-//         }
-//         else if (pos_wifi_pref.isKey("wifi_ssid"))
-//         {
-//             String ssid = pos_wifi_pref.getString("wifi_ssid");
-//             String pass = pos_wifi_pref.getString("wifi_pass");
-//             WiFi.disconnect(false, true);
-//             WiFi.begin(ssid, pass);
-//             vTaskDelay(500 / portTICK_PERIOD_MS);
-//         }
-//         else
-//         {
-//             vTaskDelay(10000 / portTICK_PERIOD_MS);
-//         }
-//     }
-// }
 
 ArRequestHandlerFunction web_ctrl_handle_connect_simple(AsyncWebServerRequest *request)
 {
@@ -591,6 +564,10 @@ void wifi_simple_connected_event(WiFiEvent_t event)
     Serial.println(temp_wifi_pass);
     pos_wifi_pref.putString("wifi_ssid", temp_wifi_ssid);
     pos_wifi_pref.putString("wifi_pass", temp_wifi_pass);
+    Serial.println("Trying to connect to MQTT server.");
+    iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
+    Serial.println("Connected.");
+    //job_manager.init();
 }
 
 #endif
@@ -710,12 +687,14 @@ bool mqtt_callback_find_home(const std::vector<double> &params)
 
 // MQTT start light sleep callback function
 bool mqtt_callback_start_light_sleep(const std::vector<double> &params){
-        xTaskCreatePinnedToCore(task_light_sleep, "light_sleep", 10 * 1024, (void *)&params[0], 1, &light_sleep_task_handle, cpu);
+        Serial.println("Light sleep start MQTT callback.");
+        xTaskCreatePinnedToCore(task_light_sleep, "light_sleep", 10 * 1024, (void *)&params[0], 5, &light_sleep_task_handle, cpu);
         return true;
 }
 
 //MQTT stop light sleep callback function
 bool mqtt_callback_stop_light_sleep(const std::vector<double> &params){
+        Serial.println("Light sleep stop MQTT callback.");
         esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
         if(light_sleep_task_handle != NULL){
             vTaskDelete(light_sleep_task_handle);
@@ -727,6 +706,7 @@ bool mqtt_callback_stop_light_sleep(const std::vector<double> &params){
 void task_light_sleep(void *params){
     double time = *((double*) params)*1000000.0;
     esp_sleep_enable_timer_wakeup((uint64_t) time);
+        Serial.println("Light sleep start.");
     while(true){
         iotIs.send_data(mqtt_server_dev_light_sleep_status, 0.0);
         esp_light_sleep_start();
