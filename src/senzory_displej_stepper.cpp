@@ -17,7 +17,9 @@
 #ifdef suff_mem
 #include <ESPAsyncWebServer.h>
 #endif
+#ifndef simple_wifi
 #include <wifi_web_manager.h>
+#endif
 #include <iot_is.h>
 #include <job_manager.h>
 #include <HardwareSerial.h>
@@ -31,6 +33,7 @@
 #include <Servo.h>
 #include <esp_task_wdt.h>
 #include <esp_log.h>
+#include <esp_wifi.h>
 
 // WiFi Web Manager definitions
 #ifdef suff_mem
@@ -383,7 +386,7 @@ void setup()
 #endif
 #ifdef suff_mem
     WiFi.mode(WIFI_MODE_APSTA);
-    WiFi.softAP(AP_SSID, AP_PASS);
+    WiFi.softAP(AP_SSID.c_str(), AP_PASS.c_str());
 #endif
 
     WiFi.setHostname(hostname);
@@ -424,6 +427,8 @@ void setup()
     Serial.println(uxSemaphoreGetCount(rotate_command_mutex));
     xSemaphoreGive(rotate_command_mutex);
     Serial.println(uxSemaphoreGetCount(rotate_command_mutex));
+
+    esp_wifi_set_max_tx_power(80); //dBm = 0.25*val
 
     // Register MQTT handlers
     job_manager.init();
@@ -565,9 +570,8 @@ void wifi_simple_connected_event(WiFiEvent_t event)
     pos_wifi_pref.putString("wifi_ssid", temp_wifi_ssid);
     pos_wifi_pref.putString("wifi_pass", temp_wifi_pass);
     Serial.println("Trying to connect to MQTT server.");
-    iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
+    //iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
     Serial.println("Connected.");
-    //job_manager.init();
 }
 
 #endif
@@ -695,7 +699,6 @@ bool mqtt_callback_start_light_sleep(const std::vector<double> &params){
 //MQTT stop light sleep callback function
 bool mqtt_callback_stop_light_sleep(const std::vector<double> &params){
         Serial.println("Light sleep stop MQTT callback.");
-        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
         if(light_sleep_task_handle != NULL){
             vTaskDelete(light_sleep_task_handle);
             light_sleep_task_handle = NULL;
