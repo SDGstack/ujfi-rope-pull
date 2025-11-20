@@ -41,6 +41,7 @@ void IoTIs::connect_task(void *pvParameters)
     mqtt_cfg.port = instance->_mqttPort;
     mqtt_cfg.username = instance->_accessToken.c_str();
     mqtt_cfg.buffer_size = 16384;
+    mqtt_cfg.disable_clean_session = true;
 
     instance->_mqttClient = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(instance->_mqttClient, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, mqtt_event_handler, instance);
