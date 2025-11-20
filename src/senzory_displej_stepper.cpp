@@ -34,11 +34,12 @@
 #include <esp_task_wdt.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
+#include <esp32/rom/rtc.h>
 
 // WiFi Web Manager definitions
 #ifdef suff_mem
 AsyncWebServer ws(80);
-String AP_SSID = "esp32_rot_control";
+String AP_SSID = "esp32_rot";
 String AP_PASS = "";
 char hostname[] = "esp32_rot";
 #endif
@@ -86,10 +87,10 @@ const char mqtt_server_dev_stepper_angle[] = "stepper_angle";
 const char mqtt_server_dev_command_rotate_angle[] = "rot_angle";
 const char mqtt_server_dev_command_rotate_to_angle[] = "rot_to_angle";
 const char mqtt_server_dev_command_find_home[] = "find_home";
-const char mqtt_server_dev_command_start_light_sleep[] = "start_light_sleep";
-const char mqtt_server_dev_command_stop_light_sleep[] = "stop_light_sleep";
-const char mqtt_server_dev_light_sleep_status[] = "light_sleep_status";
-TaskHandle_t light_sleep_task_handle = NULL;
+const char mqtt_server_dev_command_start_sleep[] = "start_sleep";
+const char mqtt_server_dev_command_stop_sleep[] = "stop_sleep";
+const char mqtt_server_dev_sleep_status[] = "sleep_status";
+TaskHandle_t sleep_task_handle = NULL;
 
 // FreeRTOS definitions
 static const BaseType_t cpu = 0;
@@ -252,13 +253,13 @@ void find_home(void *params);
 bool mqtt_callback_rotate_angle(const std::vector<double> &params);
 bool mqtt_callback_rotate_to_angle(const std::vector<double> &params);
 bool mqtt_callback_find_home(const std::vector<double> &params);
-bool mqtt_callback_start_light_sleep(const std::vector<double> &params);
-bool mqtt_callback_stop_light_sleep(const std::vector<double> &params);
+bool mqtt_callback_start_sleep(const std::vector<double> &params);
+bool mqtt_callback_stop_sleep(const std::vector<double> &params);
 
 // MQTT task functions
 void task_rotate_abs(void *params);
 void task_rotate_rel(void *params);
-void task_light_sleep(void *params);
+void task_sleep(void *params);
 
 // WiFi callback
 void on_wifi_connected(WiFiEvent_t event);
@@ -434,8 +435,8 @@ void setup()
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
     job_manager.register_command(mqtt_server_dev_command_rotate_to_angle, mqtt_callback_rotate_to_angle);
     job_manager.register_command(mqtt_server_dev_command_find_home, mqtt_callback_find_home);
-    job_manager.register_command(mqtt_server_dev_command_start_light_sleep, mqtt_callback_start_light_sleep);
-    job_manager.register_command(mqtt_server_dev_command_stop_light_sleep, mqtt_callback_stop_light_sleep);
+    job_manager.register_command(mqtt_server_dev_command_start_sleep, mqtt_callback_start_sleep);
+    job_manager.register_command(mqtt_server_dev_command_stop_sleep, mqtt_callback_stop_sleep);
     Serial.println("Adding jobs to job manager.");
 
     // Set sensor task
@@ -447,6 +448,18 @@ void setup()
     // Position update task
     xTaskCreatePinnedToCore(update_pos, "UPDATE", 15 * 1024, NULL, 1, &update_pos_task_handle, cpu);
     Serial.println("Initialised.");
+
+    if(rtc_get_reset_reason(0)==DEEPSLEEP_RESET||rtc_get_reset_reason(1)==DEEPSLEEP_RESET){
+        if(pos_wifi_pref.isKey("abs_pos")){
+            stepper.setCurrentPositionInRevolutions(pos_wifi_pref.getDouble("abs_pos"));
+            home_found = true;
+        }
+    }
+    else{
+        if(pos_wifi_pref.isKey("sleep_s")){
+            pos_wifi_pref.remove("sleep_s");
+        }
+    }
 }
 
 // TREBA PREROBIT POS0-POS6!!!!!!
@@ -571,9 +584,12 @@ void wifi_simple_connected_event(WiFiEvent_t event)
     pos_wifi_pref.putString("wifi_ssid", temp_wifi_ssid);
     pos_wifi_pref.putString("wifi_pass", temp_wifi_pass);
     Serial.println("Trying to connect to MQTT server.");
-    //iotIs.~IoTIs();
     iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
     Serial.println("Connected.");
+    if(pos_wifi_pref.isKey("sleep_s")){
+        double *sleep_s = new double(pos_wifi_pref.getDouble("sleep_s"));
+        xTaskCreatePinnedToCore(task_sleep, "task_sleep", 10 * 1024, (void *)sleep_s, 5, &sleep_task_handle, cpu);
+    }
 }
 
 #endif
@@ -691,39 +707,40 @@ bool mqtt_callback_find_home(const std::vector<double> &params)
     return true;
 }
 
-// MQTT start light sleep callback function
-bool mqtt_callback_start_light_sleep(const std::vector<double> &params){
-        Serial.println("Light sleep start MQTT callback.");
-        xTaskCreatePinnedToCore(task_light_sleep, "light_sleep", 10 * 1024, (void *)&params[0], 5, &light_sleep_task_handle, cpu);
+// MQTT start sleep callback function
+bool mqtt_callback_start_sleep(const std::vector<double> &params){
+        Serial.println("Sleep start MQTT callback.");
+        xTaskCreatePinnedToCore(task_sleep, "task_sleep", 10 * 1024, (void *)&params[0], 5, &sleep_task_handle, cpu);
         return true;
 }
 
-//MQTT stop light sleep callback function
-bool mqtt_callback_stop_light_sleep(const std::vector<double> &params){
-        Serial.println("Light sleep stop MQTT callback.");
-        vTaskDelay(1000/portTICK_PERIOD_MS);
-        if(light_sleep_task_handle != NULL){
-            vTaskSuspendAll();
-            vTaskDelete(light_sleep_task_handle);
-            light_sleep_task_handle = NULL;
-            xTaskResumeAll();
+//MQTT stop sleep callback function
+bool mqtt_callback_stop_sleep(const std::vector<double> &params){
+        Serial.println("Sleep stop MQTT callback.");
+        if(pos_wifi_pref.isKey("sleep_s")){
+            pos_wifi_pref.remove("sleep_s");
         }
+        if(sleep_task_handle != NULL){
+            vTaskDelete(sleep_task_handle);
+            sleep_task_handle = NULL;
+        }
+        iotIs.send_data(mqtt_server_dev_sleep_status, 0);
         return true;
 }
 
-void task_light_sleep(void *params){
-    double time = *((double*) params)*1000000.0;
-    esp_sleep_enable_timer_wakeup((uint64_t) time);
-        Serial.println("Light sleep task start.");
+void task_sleep(void *params){
+    xSemaphoreTake(rotate_command_mutex, portMAX_DELAY);
+    double time_s = *((double*)params);
+    time_s = min(2.0*60.0*60.0, time_s); // Min from 2 hours r set time
+    pos_wifi_pref.putDouble("sleep_s", time_s);
+    esp_sleep_enable_timer_wakeup((uint64_t) (time_s*1000000));
+    Serial.println("Sleep task start.");
     while(true){
-        iotIs.send_data(mqtt_server_dev_light_sleep_status, 0.0);
-        vTaskDelay(10*1000/portTICK_PERIOD_MS);
-        Serial.println("Entering sleep.");
-        vTaskDelay(1*1000/portTICK_PERIOD_MS);
-        esp_light_sleep_start();
-        Serial.println("Exiting sleep.");
-        iotIs.send_data(mqtt_server_dev_light_sleep_status, time/1000000);
+        iotIs.send_data(mqtt_server_dev_sleep_status, time_s);
         vTaskDelay(30*1000/portTICK_PERIOD_MS);
+        Serial.println("Entering sleep.");
+        Serial.flush(); 
+        esp_deep_sleep_start();
     }
 }
 
