@@ -71,8 +71,9 @@ const float servo_large_unlock_angle = 30;
 const float servo_lock_angle = 2;
 
 // MQTT definitions (on mqtt.smogrovic.com - auth username is device id)
-const char mqtt_server_url[] = "mqtt.smogrovic.com";
-const int mqtt_server_port = 1883;
+//const char mqtt_server_url[] = "mqtt.smogrovic.com";
+const char mqtt_server_url[] = "10.11.1.29";
+const int  mqtt_server_port = 1883;
 const char mqtt_server_dev_id[] = "wxe6BVrTWJ1Kuib0SigC2JRU";
 const char mqtt_server_dev_ds18b20[] = "ds18b20";
 const char mqtt_server_dev_bme680temp[] = "bme680_temp";
@@ -245,6 +246,8 @@ void find_home(void *params);
 bool mqtt_callback_rotate_angle(const std::vector<double> &params);
 bool mqtt_callback_rotate_to_angle(const std::vector<double> &params);
 bool mqtt_callback_find_home(const std::vector<double> &params);
+bool mqtt_callback_move_by_dist(const std::vector<double> &params);
+bool mqtt_callback_move_to_dist(const std::vector<double> &params);
 
 // MQTT task functions
 void task_rotate_abs(void *params);
@@ -422,6 +425,11 @@ void setup()
     job_manager.register_command(mqtt_server_dev_command_rotate_angle, mqtt_callback_rotate_angle);
     job_manager.register_command(mqtt_server_dev_command_rotate_to_angle, mqtt_callback_rotate_to_angle);
     job_manager.register_command(mqtt_server_dev_command_find_home, mqtt_callback_find_home);
+
+    // TEMP!!!!
+    job_manager.register_command("move_by_dis", mqtt_callback_move_by_dist);
+    job_manager.register_command("move_to_dis", mqtt_callback_move_to_dist);
+
     job_manager.init();
     Serial.println("Trying to connect to MQTT server.");
     iotIs.connect(mqtt_server_dev_id, mqtt_server_url, mqtt_server_port);
@@ -685,6 +693,36 @@ bool mqtt_callback_rotate_to_angle(const std::vector<double> &params)
     {
         Serial.println("MQTT rotate to angle.");
         double *p = new double(-(params[0] + deg_per_teeth) / 360.0f);
+        xTaskCreatePinnedToCore(task_rotate_abs, "abs_rot_t", 10 * 1024, (void *)p, 1, NULL, cpu);
+        return true;
+    }
+    return false;
+}
+
+// TEMP!!!!
+// MQTT move by distance callback function
+bool mqtt_callback_move_by_dist(const std::vector<double> &params)
+{
+    if (!params.empty())
+    {
+        Serial.println("MQTT move by distance.");
+        double dist_per_rot = 125.0;
+        double *p = new double(-(params[0]*360.0f/dist_per_rot + deg_per_teeth) / 360.0f);
+        xTaskCreatePinnedToCore(task_rotate_rel, "rel_rot_t", 10 * 1024, (void *)p, 1, &rel_rot_task_handle, cpu);
+        return true;
+    }
+    return false;
+}
+
+// TEMP!!!!
+// MQTT move to distance callback function
+bool mqtt_callback_move_to_dist(const std::vector<double> &params)
+{
+    if (!params.empty())
+    {
+        Serial.println("MQTT move to distance.");
+        double dist_per_rot = 125.0;
+        double *p = new double(-(params[0]*360.0f/dist_per_rot + deg_per_teeth) / 360.0f);
         xTaskCreatePinnedToCore(task_rotate_abs, "abs_rot_t", 10 * 1024, (void *)p, 1, NULL, cpu);
         return true;
     }
@@ -992,11 +1030,15 @@ void print_sensors(void *params)
             if (home_found)
             {
                 iotIs.send_data(mqtt_server_dev_stepper_angle, angle);
+                // TEMP!!!!
+                double dist_per_rot = 125.0f;
+                iotIs.send_data("abs_pos_dist", stepper.getCurrentPositionInRevolutions()*dist_per_rot);
                 Serial.println(angle);
             }
             else
             {
                 iotIs.send_data(mqtt_server_dev_stepper_angle, -300.0f);
+                iotIs.send_data("abs_pos_dist", -300.0f);
             }
             xSemaphoreGive(rotate_command_mutex);
         }
