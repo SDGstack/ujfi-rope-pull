@@ -1,3 +1,8 @@
+// DOM objects for light sleep
+const elem_but_light_sleep =
+    document.getElementsByClassName("light_sleep_button")[0];
+elem_but_light_sleep.addEventListener("click", click_light_sleep);
+
 // DOM objects for abs movement
 // Encompassing div
 const elem_div_home_found = document.getElementsByClassName("home_found")[0];
@@ -11,7 +16,8 @@ const elem_toggle_sign_abs =
     document.getElementsByClassName("toggle_sign_abs")[0];
 // Angle input, select
 const elem_angle_abs = document.getElementsByClassName("angle_abs")[0];
-const elem_angle_abs_input = document.getElementsByClassName("abs_val_input")[0];
+const elem_angle_abs_input =
+    document.getElementsByClassName("abs_val_input")[0];
 const elem_angle_abs_input_set = document.getElementsByClassName("set_abs")[0];
 // Events for abs
 elem_angle_abs_input_set.addEventListener("click", click_set_abs_input);
@@ -27,14 +33,14 @@ const elem_toggle_sign_rel =
 const elem_rel_unit = document.getElementsByClassName("rel_unit")[0];
 // Angle input, select
 const elem_angle_rel = document.getElementsByClassName("angle_rel")[0];
-const elem_angle_rel_input = document.getElementsByClassName("rel_val_input")[0];
+const elem_angle_rel_input =
+    document.getElementsByClassName("rel_val_input")[0];
 const elem_angle_rel_input_set = document.getElementsByClassName("set_rel")[0];
 // Events for rel
 elem_angle_rel_input_set.addEventListener("click", click_set_rel_input);
 elem_toggle_sign_rel.addEventListener("click", click_toggle_sign_rel);
 elem_submit_rel.addEventListener("click", () => click_submit_rel(), false);
 elem_rel_unit.addEventListener("change", select_unit_rel);
-
 
 // DOM object for current angle
 const elem_angle_cur = document.getElementsByClassName("angle_cur")[0];
@@ -55,7 +61,7 @@ const elem_current_mm_per_rot = document.getElementsByClassName("esp_val")[0];
 const elem_set_mm_per_rot =
     document.getElementsByClassName("set_mm_per_rot")[0];
 const elem_submit_set_mm_per_rot = document.getElementsByClassName(
-    "submit_set_mm_per_rot"
+    "submit_set_mm_per_rot",
 )[0];
 var current_mm_per_rot = NaN;
 // Events for value unit DOM objects
@@ -116,7 +122,8 @@ function refresh_unit_vals() {
 
 function click_set_abs_input() {
     let local_unit_mult = disp_coef_deg_per_unit;
-    if (isNaN(disp_coef_deg_per_unit)) { // Do not modify set value if display units multiplier is nan (if mm_per_rot==nan)
+    if (isNaN(disp_coef_deg_per_unit)) {
+        // Do not modify set value if display units multiplier is nan (if mm_per_rot==nan)
         return;
     }
     switch (elem_abs_unit.value) {
@@ -140,9 +147,23 @@ function click_set_abs_input() {
     refresh_unit_vals();
 }
 
+async function click_light_sleep() {
+    const url = "light_sleep";
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Response status: ${response.status}`);
+        }
+        alert("Entering light sleep.");
+    } catch (error) {
+        console.error("Angle fetch error: " + error.message);
+    }
+}
+
 function click_set_rel_input() {
     let local_unit_mult = disp_coef_deg_per_unit;
-    if (isNaN(disp_coef_deg_per_unit)) { // Do not modify set value if display units multiplier is nan (if mm_per_rot==nan)
+    if (isNaN(disp_coef_deg_per_unit)) {
+        // Do not modify set value if display units multiplier is nan (if mm_per_rot==nan)
         return;
     }
     switch (elem_rel_unit.value) {
@@ -152,8 +173,8 @@ function click_set_rel_input() {
         case "2":
             local_unit_mult = 360.0;
             break;
-            case "3":
-                local_unit_mult = 360.0 / (2.0 * Math.PI);
+        case "3":
+            local_unit_mult = 360.0 / (2.0 * Math.PI);
             break;
         case "4":
             if (isNaN(current_mm_per_rot)) {
@@ -222,7 +243,7 @@ async function refresh_angle() {
         current_mm_per_rot = parseFloat(json["mm_per_rot"]);
         elem_current_mm_per_rot.innerHTML = current_mm_per_rot;
         if (!isNaN(angle)) {
-            elem_angle_cur.innerHTML = angle/disp_coef_deg_per_unit;
+            elem_angle_cur.innerHTML = angle / disp_coef_deg_per_unit;
             elem_div_home_found.removeAttribute("hidden");
             elem_p_home_not_found.setAttribute("hidden", "hidden");
         } else {
@@ -232,7 +253,7 @@ async function refresh_angle() {
         elem_submit_set_mm_per_rot.removeAttribute("hidden");
         elem_set_mm_per_rot.removeAttribute("disabled");
         elem_con_stat.innerHTML = "ESP32 connected";
-        select_unit_change()
+        select_unit_change();
     } catch (error) {
         console.error("Angle fetch error: " + error.message);
         elem_con_stat.innerHTML = "ESP32 disconnected.";
@@ -240,7 +261,7 @@ async function refresh_angle() {
         elem_current_mm_per_rot.innerHTML = current_mm_per_rot;
         elem_submit_set_mm_per_rot.setAttribute("hidden", "hidden");
         elem_set_mm_per_rot.setAttribute("disabled", "true");
-        select_unit_change()
+        select_unit_change();
     }
 }
 

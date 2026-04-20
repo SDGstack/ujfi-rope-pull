@@ -26,6 +26,7 @@
 #include <Servo.h>
 #include <esp_task_wdt.h>
 #include <esp_log.h>
+#include <esp_sleep.h>
 #include <web/WebWiFi.h>
 #include <web/WebCTRL.h>
 
@@ -36,7 +37,7 @@ Preferences pos_wifi_pref;
 
 // Definitions
 AsyncWebServer ws(80);
-String AP_SSID = "esp32_rot_control";
+String AP_SSID = "esp32_rot";
 String AP_PASS = "";
 char hostname[] = "esp32_rot";
 // HTML and JS files are automatically converted into header file Strings - check include/web/WebWiFi.h
@@ -51,6 +52,9 @@ ArRequestHandlerFunction web_wifi_handle_root(AsyncWebServerRequest *request);
 ArRequestHandlerFunction web_wifi_handle_js(AsyncWebServerRequest *request);
 void wifi_simple_connected_event(WiFiEvent_t event);
 void reconn_wifi_simple(void *params);
+
+// Callback for light sleep
+ArRequestHandlerFunction web_wifi_handle_light_sleep(AsyncWebServerRequest *request);
 
 // WiFi Web Control
 
@@ -114,6 +118,19 @@ static const BaseType_t cpu = 0;
 
 #endif
 
+// Definitions for light sleep
+
+// Light sleep microswitch
+#define light_sleep_switch_polarity_off HIGH
+
+#ifdef board_firebeetle // FireBeetle
+#define pin_light_sleep_switch GPIO_NUM_23
+
+#elif defined board_devkitv1 // DEVKIT V1
+#error "No defined light sleep switch pin for this board!"
+#endif
+
+
 // Definitions for stepper
 
 // Stepping
@@ -162,6 +179,7 @@ TaskHandle_t rel_rot_task_handle = NULL;
 
 #endif
 double rotations_to_lowest = 0.0;
+
 
 // Function for finding home position.
 void find_home(void *params);
@@ -228,6 +246,11 @@ void setup()
     // Set switch pin according to polarity in off state
     pinMode(pin_high_switch, (high_switch_polarity_off==HIGH)? INPUT_PULLUP : INPUT_PULLDOWN);
     pinMode(pin_low_switch, (low_switch_polarity_off==HIGH)? INPUT_PULLUP : INPUT_PULLDOWN);
+    pinMode(pin_light_sleep_switch, (light_sleep_switch_polarity_off==HIGH)? INPUT_PULLUP : INPUT_PULLDOWN);
+    
+    // WiFi hostname & mDNS
+    WiFi.setHostname(hostname);
+    MDNS.begin(hostname);
 
     // Enable WiFi
     WiFi.mode(WIFI_MODE_APSTA);
@@ -237,14 +260,10 @@ void setup()
     Serial.print("AP: ");
     Serial.println(WiFi.softAPIP());
 
-
-    // WiFi hostname & mDNS
-    WiFi.setHostname(hostname);
-    MDNS.begin(hostname);
-
     // Assign web control interface callbacks
     ws.on((web_ctrl_prefix + "/").c_str(), web_ctrl_handle_root);
     ws.on((web_ctrl_prefix + "/script.js").c_str(), web_ctrl_handle_js);
+    ws.on((web_ctrl_prefix + "/light_sleep").c_str(), web_wifi_handle_light_sleep);
     ws.on((web_ctrl_prefix + "/fetch_angle").c_str(), web_ctrl_handle_fetch_angle);
     ws.on("/set_angle", web_ctrl_handle_set_angle);
     ws.on("/by_angle", web_ctrl_handle_by_angle);
@@ -306,7 +325,46 @@ void loop()
     }
 }
 
-// Web WiFi manager attempt connecting to WiFi callback
+// Web WiFi manager
+
+// Root/index request callback
+ArRequestHandlerFunction web_wifi_handle_root(AsyncWebServerRequest *request)
+{
+    Serial.println("Simple WiFi: Handling HTML.");
+    request->send(200, "text/html", WebWiFi_index_html);
+    return 0;
+}
+
+// JS request callback
+ArRequestHandlerFunction web_wifi_handle_js(AsyncWebServerRequest *request)
+{
+    Serial.println("Simple WiFi: Handling JS.");
+    request->send(200, "text/javascript", WebWiFi_script_js);
+    return 0;
+}
+
+// Light sleep task
+void light_sleep_task(void *params){
+    Serial.println("Entering light sleep.");
+    gpio_wakeup_enable(pin_light_sleep_switch, (light_sleep_switch_polarity_off==HIGH)? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL);
+    ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup());
+    stepper.disableDriver();
+    vTaskDelay(500/portTICK_PERIOD_MS);
+    esp_light_sleep_start();
+    vTaskDelay(100/portTICK_PERIOD_MS);
+    Serial.println("Exiting light sleep.");
+    WiFi.softAP(AP_SSID, AP_PASS);
+    vTaskDelete(NULL);
+} 
+
+// Light sleep callback
+ArRequestHandlerFunction web_wifi_handle_light_sleep(AsyncWebServerRequest *request){
+    xTaskCreatePinnedToCore(light_sleep_task, "light_sleep", 10 * 1024, NULL, configMAX_PRIORITIES-1, NULL, cpu);
+    request->send(200);
+    return 0;
+}
+
+// Attempt connecting to WiFi callback
 ArRequestHandlerFunction web_wifi_handle_connect(AsyncWebServerRequest *request)
 {
     String ssid = request->arg("ssid");
@@ -326,7 +384,7 @@ ArRequestHandlerFunction web_wifi_handle_connect(AsyncWebServerRequest *request)
     return 0;
 }
 
-// Web WiFi manager remove saved WiFi config callback
+// Remove saved WiFi config callback
 ArRequestHandlerFunction web_wifi_handle_rem_saved_wifi(AsyncWebServerRequest *request)
 {
     Serial.println("Simple WiFi: Removing saved WiFi.");
@@ -340,23 +398,7 @@ ArRequestHandlerFunction web_wifi_handle_rem_saved_wifi(AsyncWebServerRequest *r
     return 0;
 }
 
-// Web WiFi manager root/index request callback
-ArRequestHandlerFunction web_wifi_handle_root(AsyncWebServerRequest *request)
-{
-    Serial.println("Simple WiFi: Handling HTML.");
-    request->send(200, "text/html", WebWiFi_index_html);
-    return 0;
-}
-
-// Web WiFi manager JS request callback
-ArRequestHandlerFunction web_wifi_handle_js(AsyncWebServerRequest *request)
-{
-    Serial.println("Simple WiFi: Handling JS.");
-    request->send(200, "text/javascript", WebWiFi_script_js);
-    return 0;
-}
-
-// Web WiFi manager check for connection callback
+// Check for connection callback
 ArRequestHandlerFunction web_wifi_handle_connected(AsyncWebServerRequest *request)
 {
     Serial.println("Simple WiFi: fetching connected.");
@@ -396,7 +438,8 @@ void wifi_simple_connected_event(WiFiEvent_t event)
     pos_wifi_pref.putString("wifi_pass", temp_wifi_pass);
 }
 
-// Web control root/index request callback 
+// Web Control
+// Root/index request callback 
 ArRequestHandlerFunction web_ctrl_handle_root(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling root.");
@@ -404,7 +447,7 @@ ArRequestHandlerFunction web_ctrl_handle_root(AsyncWebServerRequest *request)
     return 0;
 }
 
-// Web control JS request callback
+// JS request callback
 ArRequestHandlerFunction web_ctrl_handle_js(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling js.");
@@ -412,7 +455,7 @@ ArRequestHandlerFunction web_ctrl_handle_js(AsyncWebServerRequest *request)
     return 0;
 }
 
-// Web control set mm per rotation callback
+// Set mm per rotation callback
 ArRequestHandlerFunction web_ctrl_handle_set_mm_per_rot(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling set millimeters per degree.");
@@ -421,7 +464,7 @@ ArRequestHandlerFunction web_ctrl_handle_set_mm_per_rot(AsyncWebServerRequest *r
     return 0;
 }
 
-// Web control find home callback
+// Find home callback
 ArRequestHandlerFunction web_ctrl_handle_find_home(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: find home.");
@@ -430,7 +473,7 @@ ArRequestHandlerFunction web_ctrl_handle_find_home(AsyncWebServerRequest *reques
     return 0;
 }
 
-// Web control angle value request callback 
+// Angle value request callback 
 ArRequestHandlerFunction web_ctrl_handle_fetch_angle(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling fetch.");
@@ -450,7 +493,7 @@ ArRequestHandlerFunction web_ctrl_handle_fetch_angle(AsyncWebServerRequest *requ
     return 0;
 }
 
-// Web control rotate absolute callback
+// Rotate absolute callback
 ArRequestHandlerFunction web_ctrl_handle_set_angle(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling set angle.");
@@ -462,7 +505,7 @@ ArRequestHandlerFunction web_ctrl_handle_set_angle(AsyncWebServerRequest *reques
     return 0;
 }
 
-// Web control rotate relative callback
+// Rotate relative callback
 ArRequestHandlerFunction web_ctrl_handle_by_angle(AsyncWebServerRequest *request)
 {
     Serial.println("Web control: Handling rotate by angle.");
