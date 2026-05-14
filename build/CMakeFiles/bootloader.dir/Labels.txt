@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/CMakeFiles/bootloader
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/CMakeFiles/bootloader.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/CMakeFiles/bootloader-complete.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

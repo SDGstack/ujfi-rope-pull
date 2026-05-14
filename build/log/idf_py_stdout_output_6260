@@ -1,0 +1,20 @@
+Command: ninja all
+[1/11] Building C object esp-idf/wifi_web_manager/CMakeFiles/__idf_wifi_web_manager.dir/wifi_web_manager.c.obj
+[2/11] Linking C static library esp-idf/wifi_web_manager/libwifi_web_manager.a
+[3/11] Linking C static library esp-idf/main/libmain.a
+[4/11] Performing build step for 'bootloader'
+[1/1] cd /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader && /home/lukas_sevc/.espressif/python_env/idf6.0_py3.14_env/bin/python /opt/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader/bootloader.bin
+Bootloader binary size 0x6610 bytes. 0x9f0 bytes (9%) free.
+[5/11] No install step for 'bootloader'
+[6/11] Completed 'bootloader'
+[7/11] Generating esp-idf/esp_system/ld/sections.ld
+[8/11] Building C object CMakeFiles/ujfi-rope-pull.elf.dir/project_elf_src_esp32.c.obj
+[9/11] Linking CXX executable ujfi-rope-pull.elf
+[10/11] Generating binary image from built executable
+esptool v5.3.dev3
+Creating ESP32 image...
+Merged 3 ELF sections.
+Successfully created ESP32 image.
+Generated /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/ujfi-rope-pull.bin
+[11/11] cd /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build && /home/lukas_sevc/.espressif/python_env/idf6.0_py3.14_env/bin/python /opt/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/partition_table/partition-table.bin /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/ujfi-rope-pull.bin
+ujfi-rope-pull.bin binary size 0x3e0d0 bytes. Smallest app partition is 0x100000 bytes. 0xc1f30 bytes (76%) free.

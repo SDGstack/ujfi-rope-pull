@@ -1,0 +1,20 @@
+dependencies:
+  idf: '>=4.4'
+description: TMC2202/08/22 stepper motor driver for the ESP-IDF
+issues: https://github.com/pedrominatel/esp-components/issues
+maintainers:
+- Pedro Minatel <pminatel@gmail.com>
+repository: git://github.com/pedrominatel/esp-components.git
+repository_info:
+  commit_sha: d4e858c36b4335218ef338f576f215341dd785c3
+  path: tmc2208
+tags:
+- driver
+- tmc2202
+- tmc2208
+- tmc2224
+- tmc22xx
+- stepper
+- motor
+url: https://github.com/pedrominatel/esp-components/tree/main/tmc2208
+version: 0.1.0

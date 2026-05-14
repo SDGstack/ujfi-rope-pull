@@ -1,0 +1,7 @@
+"-specs=/home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build/bootloader/specs/picolibc.specs"
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+-fno-rtti

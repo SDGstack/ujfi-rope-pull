@@ -1,0 +1,9 @@
+Command: cmake -G Ninja -B /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code/build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/lukas_sevc/.espressif/python_env/idf6.0_py3.14_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=False /home/lukas_sevc/Documents/Work/FEI-STU/ujfi-rope-pull/code/UJFI-rope-pull-code
+Configuration Report               
+ ───────────────────────────────── 
+   Parser Version: 1               
+   Verbosity: default              
+   Defaults policy: sdkconfig      
+   Status: Finished successfully   
+                                   
+ ───────────────────────────────── 

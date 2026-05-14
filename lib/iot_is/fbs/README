@@ -1,4 +1,0 @@
-You can generate the C++ code from the .fbs file using the following command:
-```
-flatc --cpp --gen-object-api Job.fbs
-```

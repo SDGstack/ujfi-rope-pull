@@ -1,0 +1,92 @@
+menu "ÚJFI emitter crane configuration"
+
+   choice USED_BOARD
+        bool "Board config"
+        default FIREBEETLE_ESP32
+
+        config DEVKIT_V1
+            bool "ESP32 DevKit v1"
+
+        config FIREBEETLE_ESP32
+            bool "Firebeetle ESP32"
+
+    endchoice
+
+    menu "Stepper motor config"
+
+        config PIN_EN
+            int "EN pin"
+            default 4 if DEVKIT_V1
+            default 10 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used for EN pin of TMC stepper
+
+        config PIN_DIR
+            int "DIR pin"
+            default 15 if DEVKIT_V1
+            default 25 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used for DIR pin of DIR/STEP interface of TMC stepper
+
+        config PIN_STEP
+            int "STEP pin"
+            default 2 if DEVKIT_V1
+            default 26 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used for STEP pin of DIR/STEP interface of TMC stepper
+    
+    endmenu
+
+    menu "Servo motor config"
+
+        config PIN_SERVO
+            int "Servo pin"
+            default 14 if DEVKIT_V1 
+            default 2 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used for servo control of locking mechanism
+
+        config ANGLE_OPEN_CW
+            int "CW rotation angle"
+            default 20
+            help
+                Sets open angle to be used for clockwise rotation (smaller)
+    
+        config ANGLE_OPEN_CCW
+            int "CCW rotation angle"
+            default 30
+            help
+                Sets open angle to be used for counterclockwise rotation (larger)
+
+        config ANGLE_CLOSED
+            int "Closed angle"
+            default 2
+            help
+                Angle to be used when locking mechanism is closed
+    
+    endmenu
+
+    menu "Switches"
+
+        config PIN_UPPER_SWITCH
+            int "Upper microswitch pin"
+            default 13 if DEVKIT_V1
+            default 18 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used as input for upper microswitch
+
+        config PIN_LOWER_SWITCH
+            int "Lower microswitch pin"
+            default 12 if DEVKIT_V1
+            default 21 if FIREBEETLE_ESP32
+            help
+                Sets pin to be used as input for lower microswitch
+
+        config PIN_SLEEP_SWITCH
+            int "Sleep microswitch pin"
+            default -1 if DEVKIT_V1
+            default 23 if FIREBEETLE_ESP32
+    
+    endmenu
+
+endmenu

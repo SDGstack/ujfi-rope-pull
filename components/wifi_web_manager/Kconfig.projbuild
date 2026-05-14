@@ -1,0 +1,7 @@
+menu "WiFi web manager"
+    config TAG_WIFI_WEB_MANAGER
+        string "WiFi web manager TAG"
+        default "TAG_WIFI_WEB_MANAGER"
+        help
+            String used as TAG for logging in WiFi web manager 
+endmenu
